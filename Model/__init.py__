@@ -1,0 +1,7 @@
+"""
+My Python Package - This is the initialization file for the package.
+"""
+
+# Package-level constants or variables
+PACKAGE_NAME = "TCAMpy"
+VERSION = "0.0.0"
