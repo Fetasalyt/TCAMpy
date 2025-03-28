@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "TCAMpy"
+version = "0.0"
+authors = [
+  { name="Richárd Bence Rózsa"}
+]
+maintainers = [
+  { name="Richárd Bence Rózsa", email = "rozsaricsibence@gmail.com"}
+]
+description = "Cellular Automata Model for Tumor Growth"
+readme = {file = "README.md", content-type = "text/markdown"}
+license = "GPL-3.0-only"
+license-files = ["LICENSE"]
+requires-python = ">=3.12"
+classifiers = [
+    "Development Status :: 1 - Planning",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+]
+dynamic = ["dependencies"]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
+[project.urls]
+# TODO: Change readthedocs link
+Homepage = "https://github.com/FetasaLYt/TCAMpy"
+Documentation = "http://your-readthedocs.com"
+Repository = "https://github.com/FetasaLYt/TCAMpy"
+Issues = "https://github.com/FetasaLYt/TCAMpy/issues"
+
+[tool.setuptools]
+packages = ["TCAMpy"]
