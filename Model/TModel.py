@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from scipy.stats import skew, kurtosis
 
-class Model:
+class TModel:
     """
     Class for a cellular automata, modeling tumor growth
 
@@ -46,14 +46,20 @@ class Model:
         self.PS = PS
     
     def init_state(self):
-        # Create the field
-        self.field = np.zeros((self.side_length, self.side_length))
+        """
+        Creates the initial state with one STC in the middle
+        """
 
-        # Add an STC to the middle
-        self.add_cell(self.side_length//2, self.side_length//2, self.pmax+1)
+        self.field = np.zeros((self.side_length, self.side_length))
+        self.mod_cell(self.side_length//2, self.side_length//2, self.pmax+1)
         
     def plot_state(self):
-        # Plot the current state of growth
+        """
+        Plots the field and the growth with cell numbers.
+        Creates a histogram of proliferation potentials.
+        """
+        
+        # Create the figue and axis
         fig, axs = plt.subplots(1, 3, figsize=(17,4))
         field_for_histogram = self.field[self.field > 0]
 
@@ -63,8 +69,8 @@ class Model:
         axs[2].hist(field_for_histogram.ravel(), edgecolor='black')
 
         # Titles/labels of the plots
-        titles = [str(self.cycles)+ " hour cell growth", "Tumor cell count", "Proliferation potential destribution"]
-        labs_x = [str(self.side_length*10) + " micrometers", "Time (hours)", "Proliferation potential values"]
+        titles = [str(self.cycles)+ " hour cell growth", "Tumor cell count", "Value destribution"]
+        labs_x = [str(self.side_length*10) + " micrometers", "Time (hours)", "Proliferation potential"]
         labs_y = [str(self.side_length*10) + " micrometers", "Cell numbers", "Number of appearance"]
 
         axs[2].set_xticks(range(1, self.pmax + 1))
@@ -79,18 +85,26 @@ class Model:
         axs[1].legend()
     
     def find_tumor_cells(self):
+        """
+        Saves the coordinates of tumor cells to self.tumor_cells
+        """
+     
         # Where are tumor cells?
         coords = np.nonzero(self.field)
         coords = np.transpose(coords)
         
         # Shuffle to randomize direction
         np.random.shuffle(coords)
-        self.tumorcells = coords
+        self.tumor_cells = coords
 
     def count_tumor_cells(self):
+        """
+        Saves the number of STCs/RTCs to self.stc_number/self.rtc_number
+        """
+        
         # Count RTC and STC
         stc_count = np.count_nonzero(self.field == self.pmax + 1)
-        rtc_count = len(self.tumorcells) - stc_count
+        rtc_count = len(self.tumor_cells) - stc_count
         
         # Save the current number
         self.stc_number.append(stc_count)
@@ -98,7 +112,7 @@ class Model:
 
     def get_free_neighbours(self, x, y):
         """
-        Get the neighboring coordinates of a given cell in a 2D NumPy matrix.
+        Returns the neighboring coordinates of a given cell in a 2D NumPy matrix.
 
         Parameters:
             x, y (int): representing the coordinates of the cell.
@@ -118,14 +132,12 @@ class Model:
         return neighbours
     
     def __apop_true__(self, x, y):
-        # Apoptosis
         if self.field[x][y] == self.pmax+1:
             return False
         else:
             return self.PA >= random.randint(1,100)
 
     def __action_true__(self, x, y, ch):
-        # Migration or proliferation
         free_nb = self.get_free_neighbours(x, y)
         if len(free_nb) == 0:
             return False
@@ -166,12 +178,11 @@ class Model:
     def cell_action(self):
         """
         This is the function that decides what action a cell will do
-        After the decision, it kills the cell or calls the 'cell_step' function
-        
+        Either kills the cell or calls the 'cell_step' function
         This function goes through every single cell in the field
-
         """
-        for cell in self.tumorcells:
+        
+        for cell in self.tumor_cells:
             # Apoptosis
             if self.__apop_true__(cell[0], cell[1]):
                 self.field[cell[0]][cell[1]] = 0
@@ -189,77 +200,80 @@ class Model:
             # Migration
             elif self.__action_true__(cell[0], cell[1], self.PM):
                 self.cell_step(cell[0], cell[1], 4)
-        
-    def save_to_img(self):
-        # Save current state of field to image
-        growth = self.ax.imshow(self.field, animated=True)
-        self.images.append([growth])
 
     def animate_growth(self):
-        # Animate the progress of growth
-        return animation.ArtistAnimation(self.fig, self.images, interval=50, blit=True, repeat_delay=100)
-
-    def save_field_to_excel(self):
-        # Save current state of field to file
-        df = pd.DataFrame(self.field)
-        df.to_excel('Tumor growth.xlsx', index=False)
-
-    def add_cell(self, x, y, value):
         """
-        The function that adds (or removes) cells at coordinates
-        Create init state before calling this function
+        Creates and returns animation of the growth
+        Save the return to a self.var_name variable
+        """
+        
+        return animation.ArtistAnimation(self.fig, self.images, interval=50, blit=True)
+
+    def save_field_to_excel(self, file_name):
+        """
+        Saves the current state of self.field to an excel file.
+        
+        Parameters:
+            file_name (str): name of the excel file
+        """
+
+        pd.DataFrame(self.field).to_excel(file_name, index=False)
+
+    def mod_cell(self, x, y, value):
+        """
+        Modifies cell value. (Create initial state before this!)
 
         Parameters:
-            x (int): x coordinate of the field
-            y (int): y coordinate of the field
+            x, y (int): representing coordinates of the cell
             value (int): the new value at the given position
         """
+        
         self.field[y][x] = value
 
     def get_statistics(self):
         """
-        Returns various statistical properties of the field.
+        Returns various statistical properties of the model
         """
         
-        # Only condsider cells for statistics
         nonzero_field = self.field[self.field > 0]
 
         texts = ["Minimum Proliferation Potential: ","Maximum Proliferation Potential: ",
                  "Mean Proliferation Potential: ", "Standard Deviation: ", "Variance: ",
-                 "Median Proliferation Potential: ", "Skewness: ", "Kurtosis: ", "\nValues: ",]
+                 "Median Proliferation Potential: ", "Skewness: ", "Kurtosis: ",
+                 "Final STC number: ", "Final RTC number: ", "\nValues:",]
         
         value = [nonzero_field.min(), nonzero_field.max(), nonzero_field.mean(),
                  nonzero_field.std(), nonzero_field.var(), np.median(nonzero_field),
-                 skew(nonzero_field.ravel()), kurtosis(nonzero_field.ravel()), "",]
+                 skew(nonzero_field.ravel()), kurtosis(nonzero_field.ravel()),
+                 self.stc_number[self.cycles-1], self.rtc_number[self.cycles-1], "",]
         
-        # Value Distribution
         unique, counts = np.unique(nonzero_field, return_counts=True)
         for val, count in zip(unique, counts):
             texts.append(str(val) + ": ")
             value.append(count)
         
-        texts.append("\nPercentiles: ")
-        value.append("")
-        
-        # Percentiles
-        percentiles = [0, 25, 50, 75, 100]  # Min, Q1, Median, Q3, Max
-        percentile_values = np.percentile(nonzero_field, percentiles)
-        for p, v in zip(percentiles, percentile_values):
-            texts.append(str(p) + ": ")
-            value.append(v)
-
         return texts, value
     
     def print_statistics(self):
+        """
+        Prints various statistical properties of the model
+        """
+        
         text, value = self.get_statistics()
-        for i in range(len(text)):
-            print(text[i] + str(value[i]))
+        for tx, val in zip(text, value):
+            print(tx + str(val))
     
-    def save_stats_to_excel(self):
-        # Saves the statistics to an excel file
+    def save_statistics(self, file_name):
+        """
+        Saves various statistical properties of the model to an excel file
+        
+        Parameters:
+            file_name (str): name of the excel file
+        """
+        
         text, value = self.get_statistics()
         df = pd.DataFrame([text, value])
-        df.to_excel('Model statistics.xlsx', index=False)
+        df.to_excel(file_name, index=False)
 
     def measure_runtime(func):
         # Decorator to measure completion time
@@ -276,12 +290,11 @@ class Model:
     def run_model(self, animated, stats):
         """
         The function that runs the entire model
+        For animation: matplotlib backend cannot be inline
 
         Parameters:
             animated (bool): set to true for animation, false for static plot
             stats (bool): set to true to print statistics of the field
-
-        For animation: matplotlib backend cannot be inline
         """
 
         # Create initial state
@@ -300,7 +313,9 @@ class Model:
             self.cell_action()
             self.find_tumor_cells()
             self.count_tumor_cells()
-            if animated: self.save_to_img()
+            if animated:
+                growth = self.ax.imshow(self.field, animated=True)
+                self.images.append([growth])
 
         # Output settings
         self.plot_state()
@@ -319,9 +334,9 @@ class Model:
         
         # User inputs for model parameters
         self.side_length = st.slider("Side Length (10um)", min_value=10, max_value=200, value=self.side_length)
-        self.cycles = st.slider("Duration (hours)", min_value=50, max_value=1000, value=self.cycles)
+        self.cycles = st.slider("Model Duration (hours)", min_value=50, max_value=1000, value=self.cycles)
         self.pmax = st.slider("Max Proliferation Potential", min_value=1, max_value=20, value=self.pmax)
-        self.PA = st.slider("Apoptosis Chance (%)", min_value=0, max_value=100, value=self.PA)
+        self.PA = st.slider("Apoptosis Chance (RTC) (%)", min_value=0, max_value=100, value=self.PA)
         self.CCT = st.slider("Cell Cycle Time (hours)", min_value=1, max_value=48, value=self.CCT)
         self.Dt = st.slider("Time Step (days)", min_value=0.01, max_value=1.0, value=self.Dt, step=0.01)
         self.PS = st.slider("STC-STC Division Chance (%)", min_value=0, max_value=100, value=self.PS)
@@ -344,7 +359,7 @@ class Model:
         cell_value = st.number_input("Cell Value", min_value=0, max_value=self.pmax+1, value=self.pmax+1)
         
         if st.button("Add Cell"):
-            self.add_cell(x_coord, y_coord, cell_value)
+            self.mod_cell(x_coord, y_coord, cell_value)
             st.session_state.field = self.field.copy()
             st.success(f"Cell added at ({x_coord}, {y_coord}) with value {cell_value}")
             
@@ -358,7 +373,7 @@ class Model:
         if st.button("Run Model"):
             self.PP = int(self.CCT*self.Dt/24*100)
             self.PM = 100*self.mu/24
-            M.run_model(animated = animated, histogram = False, stats = False)
+            M.run_model(animated = animated, stats = False)
             
             # Display results
             fig, axs = plt.subplots(1, 2, figsize=(11, 4))
@@ -404,9 +419,3 @@ class Model:
             text, value = self.get_statistics()
             for i in range(len(text)):
                 st.write(text[i] + str(value[i]))
-
-# Example usage
-M = Model(75, 500, 10, 1, 24, 1/24, 15, 4)
-M.run_model(animated = False, stats = True)
-
-# M.create_dashboard()
