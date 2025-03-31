@@ -1,4 +1,4 @@
-import Model.TCAMpy as tcam
+import Model.TCAMpy2D as tcam
 
 if __name__ == "__main__":
     # Create and Run a Model
