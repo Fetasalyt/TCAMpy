@@ -1,5 +1,5 @@
 # TCAMpy
-A python code/package for a cellular automaton modeling tumor growth. The user can set the parameters, create unique initial states, view and save statistics, save data and also use a streamlit dashboard as a graphical interface. Growth plots, histograms and animation is available for visualization in an easy to use way.
+A single python module for a cellular automaton modeling tumor growth. The user can set the parameters, create unique initial states, view and save statistics, save data and also use a streamlit dashboard as a graphical interface. Growth plots, histograms and animation is available for visualization in an easy to use way.
 
 The theoretical background for this model is based on the work of Carlos A Valentim, José A Rabi and Sergio A David.
 
