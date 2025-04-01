@@ -24,7 +24,7 @@ classifiers = [
 dynamic = ["dependencies"]
 
 [tool.setuptools.dynamic]
-dependencies = {file = ["requirements.txt"]}
+dependencies = {file = ["docs/requirements.txt"]}
 
 [project.urls]
 # TODO: Change readthedocs link
