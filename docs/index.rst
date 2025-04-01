@@ -25,12 +25,10 @@ API Documentation
 ================
 The following section provides the API documentation for the project.
 
-.. automodule:: your_module
+.. automodule:: TCAMpy
    :members:
    :undoc-members:
    :show-inheritance:
-
-This will pull the docstrings from `your_module.py` located in the `Model` folder.
 
 Modules
 =======
