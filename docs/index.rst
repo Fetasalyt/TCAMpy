@@ -30,22 +30,14 @@ The following section provides the API documentation for the project.
    :undoc-members:
    :show-inheritance:
 
-Modules
-=======
-The following modules are part of the project:
-
-.. toctree::
-   :maxdepth: 1
-
-   modules
+Usage
+=====
+After you installed TCAMpy and it's dependencies (which should be automatically installed with TCAMpy)
+you can start using the model.
 
 Installation
 ============
 Instructions for installing the project.
-
-Usage
-=====
-Instructions on how to use the project, including code examples.
 
 License
 =======
