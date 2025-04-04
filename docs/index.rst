@@ -72,9 +72,22 @@ You can also modifiy the initial state by calling the following functions before
     M.init_state()
     M.mod_cell(x, y, value)
 
-This function modifies the value of the cell at the (x, y) coordinates. For example, if you want to add another STC at (10,20),
+The 'mod_cell()' modifies the value of the cell at the (x, y) coordinates. For example, if you want to add another STC at (10,20),
 use this command with x = 10, y = 20 and value = M.pmax + 1. You can change the initial state as much as you'd like before running
-the model. You can also remove the automatically created STC by changing it's value to 0.
+the model.
+
+For this function to work, first you
+need to create an initial state manually by the 'init_state()' function. You can remove the automatically created STC by changing it's value to 0. (You don't need to call this function if you don't want to modifiy the initial state, running the model creates a basic initial state, if you didn't define one before.)
+
+If you'd like to use this model on a graphical interface, you can create a streamlit dashboard:
+
+.. code-block:: python
+
+    M.create_dashboard()
+
+You will need to run the file containing this in a command prompt. A dashboard will be created, where you have full control over the model. You can set the parameters using the sliders, run the model, view plots, animation as well as statistics.
+
+You also have access to commands to save results (the field or the statistics) to an excel file, or create your own run function/loop by individually accessing cycles and cells. For details on those functions check the :ref:`api-docs`.
 
 .. _api-docs:
 
