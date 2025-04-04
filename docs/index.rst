@@ -11,10 +11,10 @@ Welcome to TCAMpy's documentation!
    :caption: Contents:
 
    What is TCAMpy?
-	Theoretical Background
+   Theoretical Background
    Getting Started
    Using the Model
-	API Documentation
+   API Documentation
 
 What is TCAMpy?
 ===============
