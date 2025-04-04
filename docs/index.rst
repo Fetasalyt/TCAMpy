@@ -48,7 +48,7 @@ you can start using the model. First, you import the module, then create a 'TMod
 
     import TCAMpy as tcam
 
-    M = tcam.TModel(50, 500, 1, 24, 1/24, 15, 4)
+    M = tcam.TModel(50, 500, 10, 1, 24, 1/24, 15, 4)
 
 The 'TModel' class takes a number of parameters. These determine the area, the different probabilities as well as the duration
 of the model. See :ref:`api-docs` for further details about them. After you've created the class with the parameters of your
@@ -65,15 +65,16 @@ various statistical properties of the model will be printed about the field and 
 function returns an animation of the growth. Note that animation does not work while using 'inline' backend. You must change
 the backend first.
 
-You can also modifiy the initial state by calling the following function before running the model:
+You can also modifiy the initial state by calling the following functions before running the model:
 
 .. code-block:: python
 
+    M.init_state()
     M.mod_cell(x, y, value)
 
 This function modifies the value of the cell at the (x, y) coordinates. For example, if you want to add another STC at (10,20),
 use this command with x = 10, y = 20 and value = M.pmax + 1. You can change the initial state as much as you'd like before running
-the model.
+the model. You can also remove the automatically created STC by changing it's value to 0.
 
 .. _api-docs:
 
