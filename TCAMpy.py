@@ -490,28 +490,3 @@ class TModel:
                         file_name="tumor_model_statistics.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     )
-                    
-                # # Animation
-                # st.write("Generating animation...")
-                
-                # frames = []
-                # for img in self.images:
-                #     fig, ax = plt.subplots()
-                #     ax.imshow(img[0].get_array(), cmap='viridis')
-                    
-                #     # Convert plot to image
-                #     temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
-                #     fig.savefig(temp_file.name, format='png', bbox_inches='tight')
-                #     plt.close(fig)
-                #     frames.append(imageio.imread(temp_file.name))
-                    
-                # # Save frames as a GIF
-                # with tempfile.NamedTemporaryFile(delete=False, suffix=".gif") as tmpfile:
-                #     imageio.mimsave(tmpfile.name, frames, duration=0.1)
-                #     st.image(tmpfile.name, caption="Tumor Growth Animation", use_container_width=True)
-
-# Example usage
-M = TModel(75, 500, 10, 1, 24, 1/24, 15, 4)
-# M.run_model(plot = True, animate = False, stats = True)
-
-M.create_dashboard()
