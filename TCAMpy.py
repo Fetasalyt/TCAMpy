@@ -1,3 +1,4 @@
+import io
 import time
 import random
 import imageio
@@ -11,7 +12,7 @@ from scipy.stats import skew, kurtosis
 
 class TModel:
     """
-    Class for a cellular automata, modeling tumor growth
+    Class for a cellular automata, modeling tumor growth.
 
     Parameters:
         side_length (int): side length of the field (10um)
@@ -47,7 +48,7 @@ class TModel:
     
     def init_state(self):
         """
-        Creates the initial state with one STC in the middle
+        Creates the initial state with one STC in the middle.
         """
 
         self.field = np.zeros((self.side_length, self.side_length))
@@ -86,7 +87,7 @@ class TModel:
     
     def find_tumor_cells(self):
         """
-        Saves the coordinates of tumor cells to self.tumor_cells
+        Saves the coordinates of tumor cells to self.tumor_cells.
         """
      
         # Where are tumor cells?
@@ -99,7 +100,7 @@ class TModel:
 
     def count_tumor_cells(self):
         """
-        Saves the number of STCs/RTCs to self.stc_number/self.rtc_number
+        Saves the number of STCs/RTCs to self.stc_number/self.rtc_number.
         """
         
         # Count RTC and STC
@@ -147,7 +148,7 @@ class TModel:
     def cell_step(self, x, y, step_type):
         """
         The function that makes a single cell do one of the following actions:
-        prolif STC - STC, prolif STC - RTC, prolif RTC - RTC, migration (1-4)
+        prolif STC - STC, prolif STC - RTC, prolif RTC - RTC, migration (1-4).
 
         Parameters:
             x (int): x coordinate of the field
@@ -177,9 +178,9 @@ class TModel:
         
     def cell_action(self):
         """
-        This is the function that decides what action a cell will do
-        Either kills the cell or calls the 'cell_step' function
-        This function goes through every single cell in the field
+        This is the function that decides what action a cell will do.
+        Either kills the cell or calls the 'cell_step' function.
+        This function goes through every single cell in the field.
         """
         
         for cell in self.tumor_cells:
@@ -203,8 +204,8 @@ class TModel:
 
     def animate_growth(self):
         """
-        Creates and returns animation of the growth
-        Save the return to a self.var_name variable
+        Creates and returns animation of the growth.
+        Save the return to a self.var_name variable!
         """
         
         return animation.ArtistAnimation(self.fig, self.images, interval=50, blit=True)
@@ -232,68 +233,69 @@ class TModel:
 
     def get_statistics(self):
         """
-        Returns various statistical properties of the model
+        Returns various statistical properties of the model.
         """
         
+        # Statistics
         nonzero_field = self.field[self.field > 0]
-
-        texts = ["Minimum Proliferation Potential: ","Maximum Proliferation Potential: ",
-                 "Mean Proliferation Potential: ", "Standard Deviation: ", "Variance: ",
-                 "Median Proliferation Potential: ", "Skewness: ", "Kurtosis: ",
-                 "Final STC number: ", "Final RTC number: ", "\nValues:",]
+        stats = {
+            "Min": nonzero_field.min(),
+            "Max": nonzero_field.max(),
+            "Mean": nonzero_field.mean(),
+            "Std": nonzero_field.std(),
+            "Var": nonzero_field.var(),
+            "Median": np.median(nonzero_field),
+            "Skew": skew(nonzero_field.ravel()),
+            "Kurtosis": kurtosis(nonzero_field.ravel()),
+            "Final STC": self.stc_number[self.cycles-1],
+            "Final RTC": self.rtc_number[self.cycles-1],
+        }
         
-        value = [nonzero_field.min(), nonzero_field.max(), nonzero_field.mean(),
-                 nonzero_field.std(), nonzero_field.var(), np.median(nonzero_field),
-                 skew(nonzero_field.ravel()), kurtosis(nonzero_field.ravel()),
-                 self.stc_number[self.cycles-1], self.rtc_number[self.cycles-1], "",]
-        
+        # Proliferation potentials
         unique, counts = np.unique(nonzero_field, return_counts=True)
         for val, count in zip(unique, counts):
-            texts.append(str(val) + ": ")
-            value.append(count)
-        
-        return texts, value
+            stats[f"PP_{int(val)}"] = count
+    
+        return stats
     
     def print_statistics(self):
         """
-        Prints various statistical properties of the model
+        Prints various statistical properties of the model.
         """
         
-        text, value = self.get_statistics()
-        for tx, val in zip(text, value):
-            print(tx + str(val))
+        print(self.get_statistics())
     
     def save_statistics(self, file_name):
         """
-        Saves various statistical properties of the model to an excel file
+        Saves various statistical properties of the model to an excel file.
         
         Parameters:
             file_name (str): name of the excel file
         """
         
-        text, value = self.get_statistics()
-        df = pd.DataFrame([text, value])
+        stats_dict = self.get_statistics()
+        df = pd.DataFrame([stats_dict])
         df.to_excel(file_name, index=False)
 
     def measure_runtime(func):
         # Decorator to measure completion time
         def wrapper(*args, **kwargs):
             start_time = time.time()
-            result = func(*args, **kwargs)
-            end_time = time.time()
-            runtime = end_time - start_time
+            result     = func(*args, **kwargs)
+            end_time   = time.time()
+            runtime    = end_time - start_time
             print("Model completion time (s): " + str(runtime))
             return result
         return wrapper
 
     @measure_runtime
-    def run_model(self, animated, stats):
+    def run_model(self, plot, animate, stats):
         """
-        The function that runs the entire model
-        For animation: matplotlib backend cannot be inline
+        The function that runs the entire model.
+        For animation: matplotlib backend cannot be inline!
 
         Parameters:
-            animated (bool): set to true for animation, false for static plot
+            animate (bool): set to true for animation, false for static plot
             stats (bool): set to true to print statistics of the field
         """
 
@@ -301,7 +303,7 @@ class TModel:
         if len(self.field) == 0: self.init_state()
         self.find_tumor_cells()
         
-        if animated:
+        if animate:
             self.fig, self.ax = plt.subplots()
             self.ax.imshow(self.field)
             self.ax.set_title(str(self.cycles)+ " hour cell growth")
@@ -313,109 +315,203 @@ class TModel:
             self.cell_action()
             self.find_tumor_cells()
             self.count_tumor_cells()
-            if animated:
+            if animate:
                 growth = self.ax.imshow(self.field, animated=True)
                 self.images.append([growth])
 
         # Output settings
-        self.plot_state()
-        if animated: self.ani = self.animate_growth()
+        if plot: self.plot_state()
+        if animate: self.ani = self.animate_growth()
         if stats: self.print_statistics()
 
     def create_dashboard(self):
         """
-        Creates a graphical user interface. The GUI is a streamlit dashboard
+        Creates a graphical user interface. The GUI is a streamlit dashboard.
         
         On the GUI you can change the value of parameters, modify initial state,
-        activate animation, run and plot the model, and save the results to a file
+        activate animation, run and plot the model, and save the results to a file.
         """
         
-        st.title("Tumor Growth Cellular Automata Model")
+        st.set_page_config(layout="wide")
         
-        # User inputs for model parameters
-        self.side_length = st.slider("Side Length (10um)", min_value=10, max_value=200, value=self.side_length)
-        self.cycles = st.slider("Model Duration (hours)", min_value=50, max_value=1000, value=self.cycles)
-        self.pmax = st.slider("Max Proliferation Potential", min_value=1, max_value=20, value=self.pmax)
-        self.PA = st.slider("Apoptosis Chance (RTC) (%)", min_value=0, max_value=100, value=self.PA)
-        self.CCT = st.slider("Cell Cycle Time (hours)", min_value=1, max_value=48, value=self.CCT)
-        self.Dt = st.slider("Time Step (days)", min_value=0.01, max_value=1.0, value=self.Dt, step=0.01)
-        self.PS = st.slider("STC-STC Division Chance (%)", min_value=0, max_value=100, value=self.PS)
-        self.mu = st.slider("Migration Capacity", min_value=0, max_value=10, value=self.mu)
+        st.markdown("<h1 style='text-align: center;'>TCAMpy</h1>", unsafe_allow_html=True)
         
-        # Checkbox for animation and init state
-        animated = st.checkbox("Enable growth animation")
+        col1, col2, col3 = st.columns([4, 1, 12])
         
-        # Ensure field is stored persistently
-        if "field" not in st.session_state:
+        # --- INITIALIZATION ---
+        if "initialized" not in st.session_state:
             self.init_state()
             st.session_state.field = self.field.copy()
-        else:
-            self.field = st.session_state.field.copy()
-        
-        # Section to add cells manually
-        st.subheader("Modify Initial State")
-        x_coord = st.number_input("X Coordinate", min_value=0, max_value=self.side_length-1, value=self.side_length//2)
-        y_coord = st.number_input("Y Coordinate", min_value=0, max_value=self.side_length-1, value=self.side_length//2)
-        cell_value = st.number_input("Cell Value", min_value=0, max_value=self.pmax+1, value=self.pmax+1)
-        
-        if st.button("Add Cell"):
-            self.mod_cell(x_coord, y_coord, cell_value)
-            st.session_state.field = self.field.copy()
-            st.success(f"Cell added at ({x_coord}, {y_coord}) with value {cell_value}")
-            
-        # Display updated field
-        fig, ax = plt.subplots()
-        ax.imshow(self.field, cmap='viridis')
-        ax.set_title("Updated Initial State")
-        st.pyplot(fig)
-        
-        # Run Model Button
-        if st.button("Run Model"):
-            self.PP = int(self.CCT*self.Dt/24*100)
-            self.PM = 100*self.mu/24
-            M.run_model(animated = animated, stats = False)
-            
-            # Display results
-            fig, axs = plt.subplots(1, 2, figsize=(11, 4))
-            axs[0].imshow(self.field)
-            axs[1].plot(self.stc_number, 'C1', label='STC')
-            axs[1].plot(self.rtc_number, 'C2', label='RTC')
-            axs[1].legend()
-            st.pyplot(fig)
-            
-            # Animation
-            if animated:
-                st.write("Generating animation...")
-                
-                frames = []
-                for img in self.images:
-                    fig, ax = plt.subplots()
-                    ax.imshow(img[0].get_array(), cmap='viridis')
-                    
-                    # Convert plot to image
-                    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
-                    fig.savefig(temp_file.name, format='png', bbox_inches='tight')
-                    plt.close(fig)
-                    frames.append(imageio.imread(temp_file.name))
-                    
-                # Save frames as a GIF
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".gif") as tmpfile:
-                    imageio.mimsave(tmpfile.name, frames, duration=0.1)
-                    st.image(tmpfile.name, caption="Tumor Growth Animation", use_container_width=True)
-        
-            # Histogram of proliferation potential values
+            st.session_state.run_model = True
+            st.session_state.initialized = True
+    
+        # --- COLUMN 1: PARAMETERS + RUN BUTTON ---
+        with col1:
+            st.markdown("<h2 style='text-align: center;'>Model Parameters</h2>", unsafe_allow_html=True)
+    
+            # UI Controls – only update the instance, not the stored state yet
+            side_length = st.slider("Side Length (10um)", 10, 200, value=self.side_length)
+            cycles      = st.slider("Model Duration (hours)", 50, 1000, value=self.cycles)
+            pmax        = st.slider("Max Proliferation Potential", 1, 20, value=self.pmax)
+            PA          = st.slider("Apoptosis Chance (RTC) (%)", 0, 100, value=self.PA)
+            CCT         = st.slider("Cell Cycle Time (hours)", 1, 48, value=self.CCT)
+            Dt          = st.slider("Time Step (days)", 0.01, 1.0, value=self.Dt, step=0.01)
+            PS          = st.slider("STC-STC Division Chance (%)", 0, 100, value=self.PS)
+            mu          = st.slider("Migration Capacity", 0, 10, value=self.mu)
+    
+            st.markdown("<h2 style='text-align: center;'>Initial State</h2>", unsafe_allow_html=True)
+    
+            x_coord    = st.number_input("X Coordinate", 0, side_length-1, value=side_length//2)
+            y_coord    = st.number_input("Y Coordinate", 0, side_length-1, value=side_length//2)
+            cell_value = st.number_input("Cell Value", 0, pmax+1, value=pmax+1)
+    
+            if st.button("Add Cell"):
+                self.field = st.session_state.field.copy()
+                self.mod_cell(x_coord, y_coord, cell_value)
+                st.session_state.field = self.field.copy()
+                st.success(f"Cell added at ({x_coord}, {y_coord}) with value {cell_value}")
+    
+            # Show current field (pre-run)
             fig, ax = plt.subplots()
-            field_for_histogram = self.field[self.field > 0]
-            ax.hist(field_for_histogram.ravel(), edgecolor='black')
-            
-            # Titles/labels of the plots
-            ax.set_title("Proliferation potential destribution")
-            ax.set_xlabel("Proliferation potential values")
-            ax.set_ylabel("Number of appearance")
-            ax.set_xticks(range(1, self.pmax + 1))
+            ax.imshow(st.session_state.field, cmap='viridis')
+            ax.set_title("Updated Initial State")
             st.pyplot(fig)
     
-            # Statistics of the model
-            text, value = self.get_statistics()
-            for i in range(len(text)):
-                st.write(text[i] + str(value[i]))
+            if st.button("Run Model"):
+                self.side_length = side_length
+                self.cycles = cycles
+                self.pmax = pmax
+                self.PA = PA
+                self.CCT = CCT
+                self.Dt = Dt
+                self.PS = PS
+                self.mu = mu
+                self.PP = int(CCT * Dt / 24 * 100)
+                self.PM = 100 * mu / 24
+    
+                self.field = st.session_state.field.copy()
+                self.stc_number = []
+                self.rtc_number = []
+    
+                self.run_model(plot=False, animate=False, stats=False)
+    
+                # Get statistics as a dict and convert to one-row DataFrame
+                stats_dict = self.get_statistics()
+                new_df = pd.DataFrame([stats_dict])
+                
+                # If not already in session state, create the cumulative stats DataFrame
+                if "stats_df" not in st.session_state:
+                    st.session_state.stats_df = new_df
+                else:
+                    st.session_state.stats_df = pd.concat([st.session_state.stats_df, new_df], ignore_index=True)
+    
+                # Store model state after running
+                st.session_state.model_result = {
+                    "field": self.field.copy(),
+                    "stc_number": self.stc_number.copy(),
+                    "rtc_number": self.rtc_number.copy(),
+                    "params": {
+                        "cycles": self.cycles,
+                        "side_length": self.side_length,
+                        "pmax": self.pmax
+                    }
+                }
+
+                # Freeze until next click
+                st.session_state.run_model = False
+    
+        # --- COLUMN 3: RESULTS ONLY WHEN MODEL HAS BEEN RUN ---
+        with col3:
+            if "model_result" in st.session_state:
+                result = st.session_state.model_result
+                field = result["field"]
+                stc = result["stc_number"]
+                rtc = result["rtc_number"]
+    
+                st.markdown("<h2 style='text-align: center;'>Visualization</h2>", unsafe_allow_html=True)
+                field_for_histogram = np.array(field)[np.array(field) > 0]
+                fig, axs = plt.subplots(1, 3, figsize=(16, 4))
+    
+                axs[0].imshow(field)
+                axs[1].plot(stc, 'C1', label='STC')
+                axs[1].plot(rtc, 'C2', label='RTC')
+                axs[2].hist(field_for_histogram.ravel(), edgecolor='black')
+    
+                titles = [f"{result['params']['cycles']} hour cell growth", "Tumor cell count", "Value distribution"]
+                labs_x = [f"{result['params']['side_length']*10} micrometers", "Time (hours)", "Proliferation potential"]
+                labs_y = [f"{result['params']['side_length']*10} micrometers", "Cell numbers", "Number of appearance"]
+    
+                axs[2].set_xticks(range(1, result['params']['pmax'] + 1))
+                for i, ax in enumerate(axs):
+                    ax.set_title(titles[i])
+                    ax.set_xlabel(labs_x[i])
+                    ax.set_ylabel(labs_y[i])
+    
+                fig.colorbar(axs[0].imshow(field))
+                axs[1].legend()
+                st.pyplot(fig)
+    
+                self.field = field
+                self.stc_number = stc
+                self.rtc_number = rtc
+                
+                # Show Statistics
+                if "stats_df" in st.session_state:
+                    df = st.session_state.stats_df
+                
+                    # Sort PP columns numerically
+                    base_cols = [col for col in df.columns if not col.startswith("PP_")]
+                    pp_cols = sorted([col for col in df.columns if col.startswith("PP_")],
+                                     key=lambda x: int(x.split("_")[1]))
+                    df = df[base_cols + pp_cols]
+                    df.index += 1
+                                    
+                    st.markdown("<h2 style='text-align: center;'>Statistics</h2>", unsafe_allow_html=True)
+                    st.dataframe(df.iloc[:, :10])  # Summary statistics
+                
+                    st.markdown("<h2 style='text-align: center;'>Proliferation Potentials</h2>", unsafe_allow_html=True)
+                    st.dataframe(df.iloc[:, 10:])  # Proliferation Potential counts
+                    
+                # Reset Statistics
+                if st.button("Reset Statistics Table"):
+                    if "stats_df" in st.session_state:
+                        del st.session_state.stats_df
+                        st.success("Statistics table has been reset.")
+                    
+                # Download Statistics
+                if "stats_df" in st.session_state:
+                    buffer = io.BytesIO()
+                    st.session_state.stats_df.to_excel(buffer, index=False)
+                    buffer.seek(0)
+                
+                    st.download_button(
+                        label="📥 Download Statistics",
+                        data=buffer,
+                        file_name="tumor_model_statistics.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
+                    
+                # # Animation
+                # st.write("Generating animation...")
+                
+                # frames = []
+                # for img in self.images:
+                #     fig, ax = plt.subplots()
+                #     ax.imshow(img[0].get_array(), cmap='viridis')
+                    
+                #     # Convert plot to image
+                #     temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
+                #     fig.savefig(temp_file.name, format='png', bbox_inches='tight')
+                #     plt.close(fig)
+                #     frames.append(imageio.imread(temp_file.name))
+                    
+                # # Save frames as a GIF
+                # with tempfile.NamedTemporaryFile(delete=False, suffix=".gif") as tmpfile:
+                #     imageio.mimsave(tmpfile.name, frames, duration=0.1)
+                #     st.image(tmpfile.name, caption="Tumor Growth Animation", use_container_width=True)
+
+# Example usage
+M = TModel(75, 500, 10, 1, 24, 1/24, 15, 4)
+# M.run_model(plot = True, animate = False, stats = True)
+
+M.create_dashboard()
