@@ -71,12 +71,12 @@ choice, you can simply run the entire model with one command:
 
 .. code-block:: python
 
-    M.run_model(animated = False, stats = True)
+    M.run_model(plot = True, animate = False, stats = True)
 
 This function automatically creates an initial state with a STC in the middle of the field. In every cycle, for the duration
-of the model, it checks the entire area and chooses an action for each tumor cell. The output includes multiple plots:
-a growth plot, a cell number plot and a histogram of the proliferation potentails. If the 'stats' parameter is set to true,
-various statistical properties of the model will be printed about the field and the cells. If 'animated' is set to true, the
+of the model, it checks the entire area and chooses an action for each tumor cell. If 'plot' is set to True, the output includes multiple plots:
+a growth plot, a cell number plot and a histogram of the proliferation potentails. If the 'stats' parameter is set to True,
+various statistical properties of the model will be printed about the field and the cells. If 'animate' is set to True, the
 function returns an animation of the growth. Note that animation does not work while using 'inline' backend. You must change
 the backend first.
 
