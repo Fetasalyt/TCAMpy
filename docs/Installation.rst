@@ -7,5 +7,5 @@ To get started with this project, follow the instructions below.
 
 The dependencies for TCAMpy are shown below:
 
-.. include:: requirements.txt
+.. include:: ../requirements.txt
    :literal:
