@@ -29,7 +29,7 @@ dependencies = {file = ["requirements.txt"]}
 [project.urls]
 # TODO: Change readthedocs link
 Homepage = "https://github.com/FetasaLYt/TCAMpy"
-Documentation = "http://your-readthedocs.com"
+Documentation = "https://tcampy.readthedocs.io/en/latest/"
 Repository = "https://github.com/FetasaLYt/TCAMpy"
 Issues = "https://github.com/FetasaLYt/TCAMpy/issues"
 
