@@ -24,7 +24,7 @@ classifiers = [
 dynamic = ["dependencies"]
 
 [tool.setuptools.dynamic]
-dependencies = {file = ["docs/requirements.txt"]}
+dependencies = {file = ["requirements.txt"]}
 
 [project.urls]
 # TODO: Change readthedocs link
@@ -34,4 +34,4 @@ Repository = "https://github.com/FetasaLYt/TCAMpy"
 Issues = "https://github.com/FetasaLYt/TCAMpy/issues"
 
 [tool.setuptools]
-packages = ["TCAMpy"]
+py-modules = ["TCAMpy"]
