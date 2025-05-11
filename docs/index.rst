@@ -18,9 +18,3 @@ Welcome to TCAMpy's documentation!
    Usage
    API
    License
-
-.. automodule:: TCAMpy
-   :members:
-   :undoc-members:
-   :private-members:
-   :show-inheritance:
