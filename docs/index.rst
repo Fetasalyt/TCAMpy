@@ -91,20 +91,29 @@ The 'mod_cell()' modifies the value of the cell at the (x, y) coordinates. For e
 use this command with x = 10, y = 20 and value = M.pmax + 1. You can change the initial state as much as you'd like before running
 the model.
 
-For this function to work, first you
-need to create an initial state manually by the 'init_state()' function. You can remove the automatically created STC by changing it's value to 0. (You don't need to call this function if you don't want to modifiy the initial state, running the model creates a basic initial state, if you didn't define one before.)
+For this function to work, first you need to create an initial state manually by the 'init_state()' function. You can remove the automatically
+created STC by changing it's value to 0. (You don't need to call this function if you don't want to modifiy the initial state, running the model
+creates a basic initial state, if you didn't define one before.)
 
-If you'd like to use this model on a graphical interface, you can create a streamlit dashboard:
+You can run multiple models using the 'run_multimodel()' function. You must specifiy how many models you'd like to run, and what initial state you'd
+like to use for them as a numpy array. (If you want to stick with the default initial state just say 'M.field'.) This function returns the results
+as a pnadas dataframe. Plot the averages with standard deviation with the 'plot_averages()' function.
 
 .. code-block:: python
 
-    M.create_dashboard()
+    stats = M.run_multimodel(5, M.field)
+    M.plot_averages(stats)
 
-You will need to run the file containing this in a command prompt. A dashboard will be created, where you have full control over the model. You can set the parameters using the sliders, run the model, view plots, animation as well as statistics.
+If you'd like to use this model on a graphical interface, you can create a streamlit dashboard (after creating model):
 
-You also have access to commands to save results (the field or the statistics) to an excel file, or create your own run function/loop by individually accessing cycles and cells. For details on those functions check the :ref:`api-docs`.
+.. code-block:: python
 
-.. _api-docs:
+    D = tcam.TDashboard(M)
+    D.run_dashboard()
+
+You will need to run the file containing this code in your command line. A dashboard will be created, where you have full control over the model. You can set the parameters using the sliders, run the model, view plots as well as statistics.
+
+You also have access to commands to save results (the field or the statistics) to an excel file, or create your own run function/loop by individually accessing cycles and cells. For details on those functions check the API Documentation.
 
 API Documentation
 =================
@@ -117,4 +126,4 @@ The following section provides the API documentation for the project.
 
 License
 =======
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the https://github.com/Fetasalyt/TCAMpy/blob/main/LICENSE (LICENSE) file for details.
