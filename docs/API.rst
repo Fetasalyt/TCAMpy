@@ -2,6 +2,12 @@ API Documentation
 =================
 The following section provides the API documentation for the project.
 
+.. automodule:: TCAMpy
+   :members:
+   :private-members:
+   :undoc-members:
+   :show-inheritance:
+
 The 'TModel' class for model creation and exexution
 ---------------------------------------------------
 
