@@ -16,7 +16,7 @@ Welcome to TCAMpy's documentation!
    Background
    Installation
    Usage
-   api
+   API
    License
 
 .. automodule:: TCAMpy
