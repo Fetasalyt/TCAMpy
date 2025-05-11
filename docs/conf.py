@@ -10,7 +10,7 @@
 
 import os
 import sys
-sys.path.insert(0, os.path.abspath("."))
+sys.path.insert(0, os.path.abspath(".."))
 
 
 # -- Project information -----------------------------------------------------
@@ -24,7 +24,6 @@ author = 'Rózsa Richárd Bence'
 
 extensions = [
   'sphinx.ext.autodoc',
-  'sphinx.ext.napoleon',
   'sphinx_rtd_theme',
   "sphinx.ext.viewcode",
   "sphinx_autodoc_typehints",
