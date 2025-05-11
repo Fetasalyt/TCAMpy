@@ -18,15 +18,6 @@ Welcome to TCAMpy's documentation!
    Usage
    API
 
-API Documentation
-=================
-The following section provides the API documentation for the project.
-
-.. automodule:: TCAMpy
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 License
 =======
 This project is licensed under the MIT License - see the https://github.com/Fetasalyt/TCAMpy/blob/main/LICENSE (LICENSE) file for details.
