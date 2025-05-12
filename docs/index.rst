@@ -16,5 +16,6 @@ Welcome to TCAMpy's documentation!
    Background
    Installation
    Usage
+   Examples
    API
    License
