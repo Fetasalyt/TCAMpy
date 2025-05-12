@@ -1,7 +1,6 @@
 Usage
 =====
-After you installed TCAMpy and it's dependencies (which should be automatically installed with TCAMpy)
-you can start using the model. First, you import the module, then create a 'TModel' class, like this:
+After you installed TCAMpy and it's dependencies you can start using the model. First, you import the module, then create a 'TModel' class, like this:
 
 .. code-block:: python
 
@@ -32,16 +31,19 @@ You can also modifiy the initial state by calling the following functions before
     M.mod_cell(x, y, value)
 
 The 'mod_cell()' modifies the value of the cell at the (x, y) coordinates. For example, if you want to add another STC at (10,20),
-use this command with x = 10, y = 20 and value = M.pmax + 1. You can change the initial state as much as you'd like before running
-the model.
+use this command with x = 10, y = 20 and value = M.pmax + 1.
 
-For this function to work, first you need to create an initial state manually by the 'init_state()' function. You can remove the automatically
+.. code-block:: python
+
+    M.mod_cell(10, 20, M.pmax + 1)
+
+You can change the initial state as much as you'd like before running the model. For this function to work, first you need to create an initial state manually by the 'init_state()' function. You can remove the automatically
 created STC by changing it's value to 0. (You don't need to call this function if you don't want to modifiy the initial state, running the model
 creates a basic initial state, if you didn't define one before.)
 
 You can run multiple models using the 'run_multimodel()' function. You must specifiy how many models you'd like to run, and what initial state you'd
 like to use for them as a numpy array. (If you want to stick with the default initial state just say 'M.field'.) This function returns the results
-as a pnadas dataframe. Plot the averages with standard deviation with the 'plot_averages()' function.
+as a pandas dataframe. Plot the averages with standard deviations with the 'plot_averages()' function.
 
 .. code-block:: python
 
@@ -55,6 +57,12 @@ If you'd like to use this model on a graphical interface, you can create a strea
     D = tcam.TDashboard(M)
     D.run_dashboard()
 
-You will need to run the file containing this code in your command line. A dashboard will be created, where you have full control over the model. You can set the parameters using the sliders, run the model, view plots as well as statistics.
+You will need to run the file containing this cod in your command line with streamlit. (If you are not in the directory of the file, define the path as well!)
+
+.. code-block:: console
+
+  streamlit run file_name.py
+
+A dashboard will be created, where you have full control over the model. You can set the parameters using the sliders, run the model, view plots as well as statistics.
 
 You also have access to commands to save results (the field or the statistics) to an excel file, or create your own run function/loop by individually accessing cycles and cells. For details on those functions check the API Documentation.
