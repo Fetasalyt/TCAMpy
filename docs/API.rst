@@ -1,3 +1,5 @@
+.. _api_docs:
+
 API Documentation
 =================
 The following section provides the API documentation for the project.
