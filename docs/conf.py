@@ -25,9 +25,7 @@ author = 'Rózsa Richárd Bence'
 extensions = [
   'sphinx.ext.autodoc',
   'sphinx_rtd_theme',
-  'sphinx.ext.viewcode',
   'sphinx.ext.napoleon',
-  'sphinx_autodoc_typehints',
   'myst_parser',
 ]
 
