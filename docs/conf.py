@@ -26,6 +26,8 @@ extensions = [
   'sphinx.ext.autodoc',
   'sphinx_rtd_theme',
   'sphinx.ext.napoleon',
+  'sphinx.ext.viewcode',
+  'sphinx_autodoc_typehints',
   'myst_parser',
 ]
 
