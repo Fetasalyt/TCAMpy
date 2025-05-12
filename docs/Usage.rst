@@ -28,21 +28,35 @@ You can also modifiy the initial state by calling the following functions before
 .. code-block:: python
 
     M.init_state()
-    M.mod_cell(x, y, value)
+    M.mod_cell(x, y, value)   # OR: M.field[y][x] = value
 
 The 'mod_cell()' modifies the value of the cell at the (x, y) coordinates. For example, if you want to add another STC at (10,20),
 use this command with x = 10, y = 20 and value = M.pmax + 1.
-
-.. code-block:: python
-
-    M.mod_cell(10, 20, M.pmax + 1)
 
 You can change the initial state as much as you'd like before running the model. For this function to work, first you need to create an initial state manually by the 'init_state()' function. You can remove the automatically
 created STC by changing it's value to 0. (You don't need to call this function if you don't want to modifiy the initial state, running the model
 creates a basic initial state, if you didn't define one before.)
 
+You don't have to use this function to define a unique initial state; you can just make 'M.field' equal to a predefined numpy array or simply change it's value at a certain coordinate. Be careful to not put cells to the edge of the area. Here is
+a complete example of a custom initial state, where the diagonal is filled with STCs (except on the edge).
+
+.. code-block:: python
+
+    import TCAMpy as tcam
+    import numpy as np
+
+    M = tcam.TModel(50, 500, 10, 1, 24, 1/24, 15, 4)
+
+    M.field = (M.pmax+1) * np.eye(M.side_length)
+
+    M.mod_cell(0, 0, 0)
+    M.mod_cell(M.side_length-1, M.side_length-1, 0)
+
+    M.run_model()
+
 You can run multiple models using the 'run_multimodel()' function. You must specifiy how many models you'd like to run, and what initial state you'd
-like to use for them as a numpy array. (If you want to stick with the default initial state just say 'M.field'.) This function returns the results
+like to use for them as a numpy array. (If you want to stick with the default initial state just say 'M.field' without modifying it or give an empty numpy array.)
+You can change 'M.field' or give a completely different numpy array as a parameter, if you want a different initial state. This function returns the results
 as a pandas dataframe. Plot the averages with standard deviations with the 'plot_averages()' function.
 
 .. code-block:: python
