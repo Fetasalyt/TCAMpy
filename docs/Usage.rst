@@ -9,7 +9,7 @@ After you installed TCAMpy and it's dependencies you can start using the model. 
     M = tcam.TModel(50, 500, 10, 1, 24, 1/24, 15, 4)
 
 The 'TModel' class takes a number of parameters. These determine the area, the different probabilities as well as the duration
-of the model. See :ref:`api-docs` for further details about them. After you've created the class with the parameters of your
+of the model. See :ref:`api_docs` for further details about them. After you've created the class with the parameters of your
 choice, you can simply run the entire model with one command:
 
 .. code-block:: python
