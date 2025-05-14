@@ -68,7 +68,11 @@ The 'plot_averages()' function only considers average and SD values. If you want
 
 .. code-block:: python
 
-    for fig in M.figures: fig.show()
+    import matplotlib.pyplot as plt
+
+    for fig in M.figures:
+    plt.figure(fig.number)
+    plt.show()
 
 If you'd like to use this model on a graphical interface, you can create a streamlit dashboard (after creating model):
 
