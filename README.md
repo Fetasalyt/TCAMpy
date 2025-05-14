@@ -12,10 +12,12 @@ This documentation provides detaild description on how to use the modul, with ex
 ## Example Results
 
 Visualization from running a single model. If enabled, the user recieves an image of the growth a line graph of cell numbers over time and a histogram of proliferation potentials.
+
 ![Plot example](https://github.com/Fetasalyt/TCAMpy/blob/main/Images/single_example.png?raw=true)
 
 Animation is available to turn on when running the model as well. Visualizing a dataframe containing results from multiple model executions is also possible. A cell number line graph of the average numbers
 and a histogram of the average proliferation potentials can be plotted with standard deviations.
+
 ![Averages plot example](https://github.com/Fetasalyt/TCAMpy/blob/main/Images/avg_example.png?raw=true)
 
 ---
