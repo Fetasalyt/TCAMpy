@@ -64,6 +64,12 @@ as a pandas dataframe. Plot the averages with standard deviations with the 'plot
     stats = M.run_multimodel(5, M.field)
     M.plot_averages(stats)
 
+The 'plot_averages()' function only considers average and SD values. If you want to see the visualization for individual executions check 'M.figures'. After every run (using 'run_model' or 'run_multimodel') the figure with all plots are saved there. Display previous figures like this:
+
+.. code-block:: python
+
+    for fig in M.figures: fig.show()
+
 If you'd like to use this model on a graphical interface, you can create a streamlit dashboard (after creating model):
 
 .. code-block:: python
