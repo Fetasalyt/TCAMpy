@@ -5,6 +5,7 @@ import hashlib
 import numpy as np
 import pandas as pd
 import streamlit as st
+from functools import wraps
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from scipy.stats import skew, kurtosis
@@ -38,6 +39,7 @@ class TModel:
         self.rtc_number = []
         self.images = []
         self.field = []
+        self.runs = []
         
         # Chances
         self.PP = int(CCT*Dt/24*100)
@@ -53,35 +55,6 @@ class TModel:
         self.field = np.zeros((self.side_length, self.side_length))
         self.mod_cell(self.side_length//2, self.side_length//2, self.pmax+1)
         
-    def plot_state(self):
-        """
-        Plots the field and the growth with cell numbers.
-        Creates a histogram of proliferation potentials.
-        """
-        
-        # Create the figue and axis
-        fig, axs  = plt.subplots(1, 3, figsize=(17,4))
-        pp_values = self.get_prolif_potentials().values()
-
-        axs[0].imshow(self.field)
-        axs[1].plot(self.stc_number, 'C1', label='STC')
-        axs[1].plot(self.rtc_number, 'C2', label='RTC')
-        axs[2].bar(range(1, self.pmax + 2), list(pp_values), edgecolor='black')
-
-        # Titles/labels of the plots
-        titles = [str(self.cycles)+ " hour cell growth", "Tumor cell count", "Value destribution"]
-        labs_x = [str(self.side_length*10) + " micrometers", "Time (hours)", "Proliferation potential"]
-        labs_y = [str(self.side_length*10) + " micrometers", "Cell numbers", "Number of appearance"]
-
-        for i, ax in enumerate(axs):
-            ax.set_title(titles[i])
-            ax.set_xlabel(labs_x[i])
-            ax.set_ylabel(labs_y[i])
-
-        # Color bar and legend
-        fig.colorbar(axs[0].imshow(self.field))
-        axs[1].legend()
-    
     def find_tumor_cells(self):
         """
         Saves the coordinates of tumor cells to self.tumor_cells.
@@ -299,8 +272,45 @@ class TModel:
         df = pd.DataFrame([stats_dict])
         df.to_excel(file_name, index=False)
 
+    def plot_run(self, run):
+        """
+        Creates growth and cell number plots, proliferation potential histograms.
+        
+        Paramteres:
+            run (int): which model execution to plot
+            
+        Returns:
+            matplotlib.figure.Figure: the generated plots of the specific run
+        """
+        
+        # Create the figue and axis        
+        fig, axs  = plt.subplots(1, 3, figsize=(17,4))
+
+        axs[0].imshow(self.runs[run-1]["field"])
+        axs[1].plot(self.runs[run-1]["stc"], 'C1', label='STC')
+        axs[1].plot(self.runs[run-1]["rtc"], 'C2', label='RTC')
+        axs[2].bar(range(1, self.pmax + 2), self.runs[run-1]["pp"], edgecolor='black')
+
+        # Titles/labels of the plots
+        titles = [str(self.cycles)+ " hour cell growth", "Cell count", "Value destribution"]
+        labs_x = [str(self.side_length*10) + " um", "Time (hours)", "Proliferation potential"]
+        labs_y = [str(self.side_length*10) + " um", "Cell numbers", "Number of appearance"]
+
+        fig.suptitle('Model ' + str(run) + " Results", fontsize = 16)
+        for i, ax in enumerate(axs):
+            ax.set_title(titles[i])
+            ax.set_xlabel(labs_x[i])
+            ax.set_ylabel(labs_y[i])
+
+        # Color bar and legend
+        fig.colorbar(axs[0].imshow(self.runs[run-1]["field"]))
+        axs[1].legend()
+        
+        return fig
+
     def measure_runtime(func):
         # Decorator to measure completion time
+        @wraps(func)
         def wrapper(*args, **kwargs):
             start_time = time.time()
             result     = func(*args, **kwargs)
@@ -317,6 +327,7 @@ class TModel:
         For animation: matplotlib backend cannot be inline!
 
         Parameters:
+            plot (bool): set to true to save and display plots of the model
             animate (bool): set to true for animation, false for static plot
             stats (bool): set to true to print statistics of the field
         """
@@ -340,9 +351,12 @@ class TModel:
             if animate:
                 growth = self.ax.imshow(self.field, animated=True)
                 self.images.append([growth])
-
+        
+        # Store the results
+        self.store_model()
+        
         # Output settings
-        if plot: self.plot_state()
+        if plot: self.plot_run(len(self.runs))
         if animate: self.ani = self.animate_growth()
         if stats: print(self.get_statistics())
         
@@ -362,7 +376,7 @@ class TModel:
         stats = []
         
         for i in range(count):
-            self.field = init_field
+            self.field = init_field.copy()
             self.stc_number = []
             self.rtc_number = []
             self.run_model(plot = False, animate = False, stats = False)
@@ -370,6 +384,20 @@ class TModel:
         all_stats = pd.DataFrame(stats)
         
         return all_stats
+
+    def store_model(self):
+        """
+        Stores the results of the previous model executions.
+        """
+        
+        result = {}
+        
+        result["field"] = self.field
+        result["stc"]   = self.stc_number
+        result["rtc"]   = self.rtc_number
+        result["pp"]    = self.get_prolif_potentials().values()
+        
+        self.runs.append(result)
 
     def plot_averages(self, data):
         """
@@ -380,7 +408,7 @@ class TModel:
             data (pd.DataFrame): Your data in a pandas dataframe format
             
         Returns:
-            fig: The plots of the averages with SD values
+            matplotlib.figure.Figure: The plots of the averages with SD values
         """
         
         stc_cols = sorted([col for col in data.columns if "_STC" in str(col)], key=lambda x: int(str(x).split("h")[0]))
@@ -414,6 +442,7 @@ class TModel:
         ax2.set_ylabel("Average Count")
         
         plt.tight_layout()
+
         return fig
 
 
@@ -513,9 +542,9 @@ class TDashboard:
             self.model.field = st.session_state.field.copy()
             self.model.stc_number = []
             self.model.rtc_number = []
-            self.model.run_model(plot=False, animate=False, stats=False)
+            self.model.run_model(plot = False, animate=False, stats=False)
 
-            stats_dict = self.model.get_statistics()
+            stats_dict   = self.model.get_statistics()
             new_stats_df = pd.DataFrame([stats_dict])
 
             if "stats_df" not in st.session_state:
@@ -523,50 +552,16 @@ class TDashboard:
             else:
                 st.session_state.stats_df = pd.concat([st.session_state.stats_df, new_stats_df], ignore_index=True)
 
-            st.session_state.model_result = {
-                "field": self.model.field.copy(),
-                "stc_number": self.model.stc_number.copy(),
-                "rtc_number": self.model.rtc_number.copy(),
-                "params": {
-                    "cycles": self.model.cycles,
-                    "side_length": self.model.side_length,
-                    "pmax": self.model.pmax
-                }
-            }
-
     def _visualize_results(self):
         """
         The function for the result visualization logic.
         """
         
-        if "model_result" not in st.session_state:
-            return
-
-        result = st.session_state.model_result
-        field = result["field"]
-        stc = result["stc_number"]
-        rtc = result["rtc_number"]
-        pp_values = self.model.get_prolif_potentials().values()
-
         st.markdown("<h2 style='text-align: center;'>Visualization</h2>", unsafe_allow_html=True)
-        fig, axs = plt.subplots(1, 3, figsize=(16, 4))
-        axs[0].imshow(field)
-        axs[1].plot(stc, 'C1', label='STC')
-        axs[1].plot(rtc, 'C2', label='RTC')
-        axs[2].bar(range(1, self.model.pmax + 2), list(pp_values), edgecolor='black')
-
-        titles = [f"{result['params']['cycles']} hour cell growth", "Tumor cell count", "Value distribution"]
-        labs_x = [f"{result['params']['side_length']*10} micrometers", "Time (hours)", "Proliferation potential"]
-        labs_y = [f"{result['params']['side_length']*10} micrometers", "Cell numbers", "Number of appearance"]
-
-        for i, ax in enumerate(axs):
-            ax.set_title(titles[i])
-            ax.set_xlabel(labs_x[i])
-            ax.set_ylabel(labs_y[i])
-
-        fig.colorbar(axs[0].imshow(field))
-        axs[1].legend()
-        st.pyplot(fig)
+        
+        if "stats_df" not in st.session_state:
+            return
+        st.pyplot(self.model.plot_run(len(self.model.runs)))
 
     def _show_statistics(self):
         """
@@ -583,7 +578,7 @@ class TDashboard:
         pp_cols   = sorted([col for col in df.columns if isinstance(col, int)])
         df.index  = df.index + 1
 
-        st.markdown("<h2 style='text-align: center;'>Statistics</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='text-align: center;'>Statistical Properties</h2>", unsafe_allow_html=True)
         st.dataframe(df[base_cols])
         st.markdown("<h2 style='text-align: center;'>Proliferation Potentials</h2>", unsafe_allow_html=True)
         st.dataframe(df[pp_cols])
