@@ -21,12 +21,14 @@ Run the model multiple (in this case 5) times. Save the results to 'stats' and p
 .. code-block:: python
 
     import TCAMpy as tcam
+    import matplotlib.pyplot as plt
 
     stats = M.run_multimodel(5, M.field)
     M.plot_averages(stats)
 
     # Check visualization for every execution (optional)
-    for fig in M.figures: fig.show()
+    for i in range(len(M.runs)):
+        plot_run(i+1)
 
 Modifying initial state
 -----------------------
