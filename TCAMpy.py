@@ -284,7 +284,7 @@ class TModel:
         """
         
         # Create the figue and axis        
-        fig, axs  = plt.subplots(1, 3, figsize=(17,4))
+        fig, axs  = plt.subplots(1, 3, figsize=(21,5))
 
         axs[0].imshow(self.runs[run-1]["field"])
         axs[1].plot(self.runs[run-1]["stc"], 'C1', label='STC')
@@ -336,6 +336,9 @@ class TModel:
         if len(self.field) == 0: self.init_state()
         self.find_tumor_cells()
         
+        self.stc_number = []
+        self.rtc_number = []
+        
         if animate:
             self.fig, self.ax = plt.subplots()
             self.ax.imshow(self.field)
@@ -377,8 +380,6 @@ class TModel:
         
         for i in range(count):
             self.field = init_field.copy()
-            self.stc_number = []
-            self.rtc_number = []
             self.run_model(plot = False, animate = False, stats = False)
             stats.append(self.get_statistics())
         all_stats = pd.DataFrame(stats)
@@ -540,8 +541,6 @@ class TDashboard:
         
         if st.button("Run Model"):
             self.model.field = st.session_state.field.copy()
-            self.model.stc_number = []
-            self.model.rtc_number = []
             self.model.run_model(plot = False, animate=False, stats=False)
 
             stats_dict   = self.model.get_statistics()
