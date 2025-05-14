@@ -69,8 +69,11 @@ even if plotting was not enabled, because the data necessary for plotting is sav
 
 .. code-block:: python
 
-    # To plot execution number i of the model
+    # To plot execution number i of the model (i starts from 1 not from 0)
     M.plot_run(i)
+
+    # Plot last execution:
+    M.plot_run(len(M.runs))
 
     # To plot every previous execution
     for i in range(len(M.runs)):
