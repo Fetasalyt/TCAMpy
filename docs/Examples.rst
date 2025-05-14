@@ -28,7 +28,7 @@ Run the model multiple (in this case 5) times. Save the results to 'stats' and p
 
     # Check visualization for every execution (optional)
     for i in range(len(M.runs)):
-        plot_run(i+1)
+        M.plot_run(i+1)
 
 Modifying initial state
 -----------------------
