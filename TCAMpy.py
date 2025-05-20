@@ -371,6 +371,32 @@ class TModel:
         
         # Stores data for statistics
         self.stats.append(self.get_statistics())
+        
+    def separate_columns(self, data):
+        """
+        Separates the statistics DataFrame columns into logical groups:
+        base statistics, STC counts, RTC counts, and proliferation potentials.
+
+        Parameters:
+            data (pd.DataFrame): Your data in a pandas dataframe format
+
+        Returns:
+            tuple of list[str]: A tuple containing four lists of column names:
+                - base: Columns with general statistical properties
+                - stc:  Columns with STC cell counts at each time point
+                - rtc:  Columns with RTC cell counts at each time point
+                - pp:   Columns for proliferation potential values
+        """
+        
+        base = [col for col in data.columns if not str(col).isdigit() and
+                "_STC" not in str(col) and "_RTC" not in str(col)]
+        stc  = sorted([col for col in data.columns if "_STC" in str(col)],
+                      key=lambda x: int(str(x).split("h")[0]))
+        rtc  = sorted([col for col in data.columns if "_RTC" in str(col)],
+                      key=lambda x: int(str(x).split("h")[0]))
+        pp   = sorted([col for col in data.columns if isinstance(col, int)])
+        
+        return base, stc, rtc, pp
 
     def plot_run(self, run):
         """
@@ -418,11 +444,7 @@ class TModel:
             matplotlib.figure.Figure: The plots of the averages with SD values
         """
         
-        stc_cols = sorted([col for col in data.columns if "_STC" in str(col)],
-                          key=lambda x: int(str(x).split("h")[0]))
-        rtc_cols = sorted([col for col in data.columns if "_RTC" in str(col)],
-                          key=lambda x: int(str(x).split("h")[0]))
-        pp_cols  = sorted([col for col in data.columns if isinstance(col, int)])
+        base_cols, stc_cols, rtc_cols, pp_cols = self.separate_columns(data)
         
         avg_stc = data[stc_cols].mean()
         std_stc = data[stc_cols].std()
@@ -482,7 +504,7 @@ class TDashboard:
             self._execute_model()
 
         with self.col3:
-            self._visualize_last_run()
+            self._visualize_run(len(self.model.runs))
             self._show_statistics()
             self._reset_save_stats()
 
@@ -546,22 +568,9 @@ class TDashboard:
             st.session_state.field = self.model.field.copy()
             st.success(f"Cell modified at ({x_coord}, {y_coord}) to {cell_value}")
 
-        field = st.session_state.field
-        heat_df = pd.DataFrame([
-            {"x": x, "y": y, "value": field[y, x]}
-            for y in range(field.shape[0])
-            for x in range(field.shape[1])
-        ])
-    
-        heatmap = alt.Chart(heat_df).mark_rect().encode(
-            x=alt.X("x:O", title="X"),
-            y=alt.Y("y:O", sort="descending", title="Y"),
-            color=alt.Color("value:Q", scale=alt.Scale(scheme="viridis"), title="PP")
-        ).properties(
-            title="Updated Initial State",
-            width=500,
-            height=500
-        )
+        field   = st.session_state.field
+        heatmap = self._create_heatmap(field)
+        
         st.altair_chart(heatmap, use_container_width=True)
 
     def _execute_model(self):
@@ -569,81 +578,39 @@ class TDashboard:
         The function for model running logic.
         """
         
+        st.markdown("<h2 style='text-align: center;'>Execution</h2>", unsafe_allow_html=True)
+        
+        rep = st.number_input("Model Repeats", 1)
+        
         if st.button("Run Model"):
-            self.model.field = st.session_state.field.copy()
-            self.model.run_model(plot = False, animate=False, stats=False)
+            for i in range(rep):
+                self.model.field = st.session_state.field.copy()
+                self.model.run_model(plot = False, animate=False, stats=False)
 
             st.session_state.model_runs = self.model.runs
             st.session_state.model_stats = self.model.stats
 
-    def _visualize_last_run(self):
+    def _visualize_run(self, run):
         """
         The function for the result visualization logic.
+        
+        Parameters:
+            run (int): which model execution to plot
         """
         
         st.markdown("<h2 style='text-align: center;'>Visualization</h2>", unsafe_allow_html=True)
         
         if "model_runs" not in st.session_state: return
-        
-        latest = self.model.runs[-1]
+                
+        latest = self.model.runs[run-1]
         field  = latest["field"]
         stc    = latest["stc"]
         rtc    = latest["rtc"]
-        
-        timepoints = list(range(len(stc)))
-        ts_df = pd.DataFrame({
-            "Hour": timepoints * 2,
-            "Cell Type": ["STC"] * len(timepoints) + ["RTC"] * len(timepoints),
-            "Count": stc + rtc
-        })
-        
-        # Proliferation Potential Bar Chart
-        pp = list(latest["pp"])
-        pp_df = pd.DataFrame({
-            "Proliferation Potential": list(range(1, len(pp) + 1)),
-            "Count": pp
-        })
-        
-        chart_size = 500
+        pp     = latest["pp"]
 
-        # Altair line chart (with fixed size)
-        line_chart = alt.Chart(ts_df).mark_line().encode(
-            x=alt.X("Hour:Q", title="Time (hours)"),
-            y=alt.Y("Count:Q", title="Cell Count"),
-            color="Cell Type:N"
-        ).properties(
-            title="Tumor Cell Counts Over Time",
-            width='container',
-            height=chart_size
-        )
-        
-        # Proliferation potential bar chart
-        bar_chart = alt.Chart(pp_df).mark_bar().encode(
-            x=alt.X("Proliferation Potential:O", title="Proliferation Potential"),
-            y=alt.Y("Count:Q", title="Number of Cells")
-        ).properties(
-            title="Proliferation Potential Distribution",
-            width='container',
-            height=chart_size
-        )
-        
-        # Convert tumor field to DataFrame for heatmap
-        heat_df = pd.DataFrame([
-            {"x": x, "y": y, "value": field[y, x]}
-            for y in range(field.shape[0])
-            for x in range(field.shape[1])
-        ])
-        
-        # Heatmap using mark_rect (square layout)
-        heatmap = alt.Chart(heat_df).mark_rect().encode(
-            x=alt.X("x:O", title="X"),
-            y=alt.Y("y:O", sort="descending", title="Y"),
-            color=alt.Color("value:Q", title="PP", scale=alt.Scale(scheme="viridis"))
-        ).properties(
-            title="Tumor Field",
-            width='container',
-            height=chart_size
-        )
+        heatmap    = self._create_heatmap(field)
+        bar_chart  = self._create_bar_chart(list(pp))
+        line_chart = self._create_line_chart(stc, rtc)
         
         col1, col2, col3 = st.columns(3)
         
@@ -654,6 +621,111 @@ class TDashboard:
         with col3:
             st.altair_chart(line_chart)
 
+    def _create_heatmap(self, field):
+        """
+        The function that creates an Altair heatmap of the field.
+        
+        Parameters:
+            field (2D array-like): the field data for the heatmap
+            
+        Returns:
+            Altair.Chart: represents the heatmap of the input field.
+        """
+        
+        heat_df = pd.DataFrame([
+            {"x": x, "y": y, "value": field[y, x]}
+            for y in range(field.shape[0])
+            for x in range(field.shape[1])
+        ])
+        
+        heatmap = alt.Chart(heat_df).mark_rect().encode(
+            x=alt.X("x:O", title="X"),
+            y=alt.Y("y:O", sort="descending", title="Y"),
+            color=alt.Color("value:Q", title="PP", scale=alt.Scale(scheme="viridis"))
+        ).properties(
+            title="Tumor Field",
+            width='container',
+            height=500
+        )
+            
+        return heatmap
+    
+    def _create_line_chart(self, stc, rtc, stc_l=None, stc_u=None, rtc_l=None, rtc_u=None):
+        """
+        The function that creates an Altair line chart of the cell numbers.
+        
+        Parameters:
+            stc, rtc (list): a list of the cell numbers (mean or raw)
+            stc_l (list of float, optional): Lower bounds (e.g., mean - SD) for STC counts.
+            stc_u (list of float, optional): Upper bounds (e.g., mean + SD) for STC counts.
+            rtc_l (list of float, optional): Lower bounds (e.g., mean - SD) for RTC counts.
+            rtc_u (list of float, optional): Upper bounds (e.g., mean + SD) for RTC counts.
+            
+        Returns:
+            Altair.Chart: represents the line chart of the cell numbers
+        """
+
+        timepoints = list(range(len(stc)))
+        df = pd.DataFrame({
+            "Hour": timepoints * 2,
+            "Cell Type": ["STC"] * len(stc) + ["RTC"] * len(rtc),
+            "Mean": stc + rtc
+        })
+    
+        if stc_l and rtc_l:
+            df["Lower"] = stc_l + rtc_l
+            df["Upper"] = stc_u + rtc_u
+    
+            area = alt.Chart(df).mark_area(opacity=0.3).encode(
+                x=alt.X("Hour:Q", title="Time (hours)"),
+                y=alt.Y("Lower:Q", title="Mean"),
+                y2="Upper:Q",
+                color="Cell Type:N"
+            )
+        else:
+            area = None
+    
+        line = alt.Chart(df).mark_line().encode(
+            x="Hour:Q",
+            y=alt.Y("Mean:Q", title="Mean"),
+            color="Cell Type:N"
+        )
+
+        chart = (area + line) if area else line
+        return chart.properties(title="Tumor Cell Counts Over Time", height=500)
+    
+    def _create_bar_chart(self, pp, std=None):
+        """
+        Creates an Altair bar chart for proliferation potential distribution.
+    
+        Parameters:
+            pp (list of float or int): Mean or raw counts of cells per proliferation potential class
+            std (list of float, optional): Standard deviation for each class
+    
+        Returns:
+            alt.Chart: An Altair chart representing the distribution of proliferation potentials
+        """
+        
+        pp_df = pd.DataFrame({
+            "Proliferation Potential": list(range(1, len(pp) + 1)),
+            "Mean": pp
+        })
+        chart = alt.Chart(pp_df).mark_bar().encode(
+            x="Proliferation Potential:O",
+            y="Mean:Q"
+        )
+    
+        if std is not None:
+            pp_df["Std"] = std
+            error = alt.Chart(pp_df).mark_errorbar(extent="stdev").encode(
+                x="Proliferation Potential:O",
+                y="Mean:Q",
+                yError="Std:Q"
+            )
+            chart = chart + error
+    
+        return chart.properties(title="Proliferation Potential Distribution", height=500)
+
     def _show_statistics(self):
         """
         The function for the statistics printing logic.
@@ -661,13 +733,13 @@ class TDashboard:
         
         if not self.model.stats: return
 
-        df        = pd.DataFrame(self.model.stats)
-        base_cols = [col for col in df.columns if not str(col).isdigit() and "_STC" not in str(col) and "_RTC" not in str(col)]
-        stc_cols  = sorted([col for col in df.columns if "_STC" in str(col)], key=lambda x: int(str(x).split("h")[0]))
-        rtc_cols  = sorted([col for col in df.columns if "_RTC" in str(col)], key=lambda x: int(str(x).split("h")[0]))
-        pp_cols   = sorted([col for col in df.columns if isinstance(col, int)])
+        df = pd.DataFrame(self.model.stats)
+        
+        base_cols, stc_cols, rtc_cols, pp_cols = self.model.separate_columns(df)
+        
         df.index  = df.index + 1
 
+        # Display DataFrames
         st.markdown("<h2 style='text-align: center;'>Statistical Properties</h2>", unsafe_allow_html=True)
         st.dataframe(df[base_cols])
         st.markdown("<h2 style='text-align: center;'>Proliferation Potentials</h2>", unsafe_allow_html=True)
@@ -678,73 +750,27 @@ class TDashboard:
         st.dataframe(df[rtc_cols])
         st.markdown("<h2 style='text-align: center;'>Model Averages</h2>", unsafe_allow_html=True)
 
-        # Altair chart with error bands
+        # Create avg charts
         stc_means = df[stc_cols].mean()
         stc_stds  = df[stc_cols].std()
         rtc_means = df[rtc_cols].mean()
         rtc_stds  = df[rtc_cols].std()
+        pp_means  = df[pp_cols].mean()
+        pp_stds   = df[pp_cols].std()
         
-        # Convert to long-form DataFrame for plotting
-        hours = [int(col.split("h")[0]) for col in stc_cols]
-        
-        plot_df = pd.DataFrame({
-            "Hour": hours * 2,
-            "Cell Type": ["STC"] * len(hours) + ["RTC"] * len(hours),
-            "Mean": list(stc_means.values) + list(rtc_means.values),
-            "Lower": (stc_means - stc_stds).tolist() + (rtc_means - rtc_stds).tolist(),
-            "Upper": (stc_means + stc_stds).tolist() + (rtc_means + rtc_stds).tolist()
-        })
-        
-        chart_size = 600
-        
-        # Create shaded area (Mean ± SD)
-        area = alt.Chart(plot_df).mark_area(opacity=0.3).encode(
-            x=alt.X("Hour:Q", title="Time (hours)"),
-            y=alt.Y("Lower:Q", title="Cell count"),
-            y2="Upper:Q",
-            color=alt.Color("Cell Type:N")
+        line_chart = self._create_line_chart(
+            list(stc_means.values), list(rtc_means.values),
+            list((stc_means - stc_stds).values), list((stc_means + stc_stds).values),
+            list((rtc_means - rtc_stds).values), list((rtc_means + rtc_stds).values)
         )
         
-        # Create line for mean values
-        lines = alt.Chart(plot_df).mark_line().encode(
-            x="Hour:Q",
-            y="Mean:Q",
-            color="Cell Type:N"
-        )
-        
-        pp_cols = sorted([col for col in df.columns if isinstance(col, int)])
-        pp_df = pd.DataFrame({
-            "Potential": pp_cols,
-            "Mean": df[pp_cols].mean().values,
-            "Std":  df[pp_cols].std().values
-        })
-        bar = alt.Chart(pp_df).mark_bar().encode(
-            x=alt.X("Potential:O", title="Proliferation Potential"),
-            y=alt.Y("Mean:Q", title="Average Count")
-        )
-        error = alt.Chart(pp_df).mark_errorbar(extent="stdev").encode(
-            x="Potential:O",
-            y=alt.Y("Mean:Q"),
-            yError="Std:Q"
-        )
-        
-        cell_chart = (area + lines).properties(
-                    title="Average Tumor Cell Counts",
-                    width=chart_size,
-                    height=chart_size
-                )
-        pp_chart = (bar + error).properties(
-                    title="Average Tumor Cell Counts",
-                    width=chart_size,
-                    height=chart_size
-                )
+        bar_chart = self._create_bar_chart(list(pp_means.values), list(pp_stds.values))
         
         col1, col2 = st.columns(2)
-        
         with col1:
-            st.altair_chart(cell_chart, use_container_width=True)          
+            st.altair_chart(line_chart, use_container_width=True)
         with col2:
-            st.altair_chart(pp_chart, use_container_width=True)
+            st.altair_chart(bar_chart, use_container_width=True)
 
     def _reset_save_stats(self):
         """
