@@ -10,7 +10,7 @@ The following section provides the API documentation for the project.
    :undoc-members:
    :show-inheritance:
 
-The 'TModel' class for model creation and exexution
+The 'TModel' class for model creation and execution
 ---------------------------------------------------
 
 .. autoclass:: TCAMpy.TModel
