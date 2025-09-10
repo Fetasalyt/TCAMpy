@@ -7,7 +7,7 @@ Welcome to TCAMpy's documentation!
 ==================================
 
 .. include:: ../README.md
-   :parser: myst_parser
+   :parser: myst_parser.sphinx_
 
 .. toctree::
    :maxdepth: 2
