@@ -31,6 +31,14 @@ extensions = [
   'myst_parser',
 ]
 
+autoclass_content = "both"  # show class docstring + __init__ docstring
+autodoc_default_options = {
+    "members": True,
+    "undoc-members": True,
+    "private-members": True,
+    "show-inheritance": True,
+}
+
 # -- Options for HTML output -------------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
