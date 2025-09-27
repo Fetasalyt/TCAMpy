@@ -16,30 +16,34 @@ class TModel:
     Class for a cellular automata, modeling tumor growth.
 
     Parameters:
-        side_length (int): side length of the field (10um)
         cycles (int): duration of the model given in hours
+        side (int): the length of the side of field (10um)
         pmax (int): maximum proliferation potential of RTC
         PA (int): chance for apoptosis of RTC (in percent)
         CCT (int): cell cycle time of cells given in hours
         Dt (float): time step of the model given in days
         PS (int): STC-STC division chance (in percent)
         mu (int): migration capacity of the cells
+        I (int): strength of immune cells (1-10)
     """
     
-    def __init__(self, side_length, cycles, pmax, PA, CCT, Dt, PS, mu):
+    def __init__(self, cycles, side, pmax, PA, CCT, Dt, PS, mu, I):
         # Parameters
-        self.side_length = side_length
         self.cycles = cycles
+        self.side = side
         self.pmax = pmax
         self.CCT = CCT
         self.Dt = Dt
         self.mu = mu
+        self.I = I
         
         # Single model data
         self.stc_number = []
         self.rtc_number = []
+        self.wbc_number  = []
+        self.immune = []
+        self.field  = []
         self.images = []
-        self.field = []
         
         # Multiple models data
         self.stats = []
@@ -56,8 +60,12 @@ class TModel:
         Creates the initial state with one STC in the middle.
         """
 
-        self.field = np.zeros((self.side_length, self.side_length))
-        self.mod_cell(self.side_length//2, self.side_length//2, self.pmax+1)
+        # Tumor field
+        self.field = np.zeros((self.side, self.side))
+        self.mod_cell(self.side//2, self.side//2, self.pmax+1)
+        
+        # Immune field
+        self.immune = np.zeros((self.side, self.side))
         
     def find_tumor_cells(self):
         """
@@ -85,39 +93,50 @@ class TModel:
         self.stc_number.append(stc_count)
         self.rtc_number.append(rtc_count)
 
-    def get_free_neighbours(self, x, y):
+    def get_neighbours(self, x, y, neighbour_type):
         """
         Returns the neighboring coordinates of a given cell in a 2D NumPy matrix.
 
         Parameters:
             x, y (int): representing the coordinates of the cell
+            neighbour_type (int): type of neighboring cells (1-4)
             
         Returns:
             list: a list with the coords of the neighbouring cells
         """
-    
+
         directions = [
             (-1, 0), (1, 0),
             (0, -1), (0, 1),
             (-1,-1), (-1,1),
             (1, -1), (1, 1)]
-
-        neighbours = []
+        
+        coords = []
         for dx, dy in directions:
             nx, ny = x + dx, y + dy
-            if 0 < nx < self.side_length-1 and 0 < ny < self.side_length-1:
-                if self.field[nx][ny] == 0: neighbours.append([nx, ny])
-        return neighbours
-    
-    def __apop_true__(self, x, y):
-        if self.field[x][y]  == self.pmax+1: return False
-        else: return self.PA >= random.randint(1,100)
-
-    def __action_true__(self, x, y, ch):
-        free_nb = self.get_free_neighbours(x, y)
-        
-        if len(free_nb) == 0: return False
-        else: return ch >= random.randint(1,100)      
+            if 0 < nx < self.side-1 and 0 < ny < self.side-1:
+                coords.append([nx, ny])
+                
+        neighbours = []
+        for n in coords:
+            match neighbour_type:
+                case 1:
+                    # Return list of empty cells
+                    if (self.field[n[0],n[1]] == 0 and self.immune[n[0],n[1]] == 0):
+                        neighbours.append(n)
+                case 2:
+                    # Return list of tumor cells
+                    if self.field[n[0],n[1]] != 0:
+                        neighbours.append(n)
+                case 3:
+                    # Return list of immune cells
+                    if self.immune[n[0],n[1]] != 0:
+                        neighbours.append(n)
+                case 2:
+                    # Return list of any cells
+                    if (self.field[n[0],n[1]] != 0 or self.immune[n[0],n[1]] != 0):
+                        neighbours.append(n)
+        return neighbours   
     
     def cell_step(self, x, y, step_type):
         """
@@ -130,26 +149,26 @@ class TModel:
         """
         
         # Choose random target position
-        free_nb = self.get_free_neighbours(x, y)
-        target = free_nb[random.randint(1,len(free_nb)) - 1]
+        free_nb = self.get_neighbours(x, y, 1)
+        nx, ny = free_nb[random.randint(1,len(free_nb)) - 1]
         
         match step_type:
             case 1:
                 # Proliferation STC -> STC + STC
-                self.field[target[0]][target[1]] = self.pmax+1
+                self.field[nx, ny] = self.pmax+1
             case 2:
                 # Proliferation STC -> STC + RTC
-                self.field[target[0]][target[1]] = self.pmax
+                self.field[nx, ny] = self.pmax
             case 3:
                 # Proliferation RTC -> RTC + RTC
-                self.field[x][y] -= 1
-                self.field[target[0]][target[1]] = self.field[x][y]
+                self.field[x,   y] -= 1
+                self.field[nx, ny] = self.field[x, y]
             case 4:
                 # Migration
-                self.field[target[0]][target[1]] = self.field[x][y]
-                self.field[x][y] = 0
+                self.field[nx, ny] = self.field[x, y]
+                self.field[x,   y] = 0  
         
-    def cell_action(self):
+    def tumor_action(self):
         """
         This is the function that decides what action a cell will do.
         Either kills the cell or calls the 'cell_step' function.
@@ -157,33 +176,112 @@ class TModel:
         """
         
         for cell in self.tumor_cells:
-            # Apoptosis
-            if self.__apop_true__(cell[0], cell[1]):
-                self.field[cell[0]][cell[1]] = 0
-            # Proliferation
-            elif self.__action_true__(cell[0], cell[1], self.PP):
-                # If STC
-                if self.field[cell[0]][cell[1]] == self.pmax+1:
-                    if self.PS >= random.randint(1,100):
-                        self.cell_step(cell[0], cell[1], 1)
-                    else:
-                        self.cell_step(cell[0], cell[1], 2)
-                # If RTC
+            x, y = cell
+            is_stc = (self.field[x, y] == self.pmax + 1)
+        
+            # Probabilities
+            probs = np.array([self.PA, self.PP, self.PM, 0], dtype=float)
+            if is_stc:
+                probs[0] = 0
+            if not self.get_neighbours(x, y, 1):
+                probs[1:3] = 0
+            if probs.sum() <= 100:
+                probs[3] = 100 - probs.sum()
+            probs /= probs.sum()
+        
+            # Choose action
+            choice = np.random.choice(4, p=probs)
+        
+            if choice == 0:  # apoptosis
+                self.field[x, y] = 0
+                
+            elif choice == 1:  # proliferation
+                if is_stc and np.random.rand() < self.PS/100:
+                    self.cell_step(x, y, 1)   # symmetric division
+                elif is_stc:
+                    self.cell_step(x, y, 2)   # asymmetric division
                 else:
-                    self.cell_step(cell[0], cell[1], 3)
-            # Migration
-            elif self.__action_true__(cell[0], cell[1], self.PM):
-                self.cell_step(cell[0], cell[1], 4)
+                    self.cell_step(x, y, 3)   # RTC division
+                    
+            elif choice == 2:  # migration
+                self.cell_step(x, y, 4)
 
-    def animate_growth(self):
+    def immune_response(self):
+        """
+        The function that models the immune response.
+        Spawns, moves and activate immune cells.
+        """
+
+        # Extract immune spawnpoints (inner edge)
+        top    = [[1, j] for j in range(1, self.side-1)]
+        bottom = [[self.side-2, j] for j in range(1, self.side-1)]
+        left   = [[i, 1] for i in range(1, self.side-1)]
+        right  = [[i, self.side-2] for i in range(1, self.side-1)]
+        self.spawnpoints = np.array(top + bottom + left + right)
+
+        # Spawn immune cells
+        for cell in self.spawnpoints:
+            size = len(self.tumor_cells)
+            
+            # Saturating spawn (MM) based on tumor size
+            chance = self.I/300 * (size) / (self.I*20 + size)
+            if np.random.rand() < chance:
+                self.immune[cell[0]][cell[1]] = self.I*15
+                
+        # Save immune cells
+        coords = np.nonzero(self.immune)
+        self.immune_cells = np.transpose(coords)
+        
+        # Immune action
+        for cell in self.immune_cells:
+            x, y = cell
+            
+            # If next to tumor cell kill it with calc. prob.
+            tumor_nb = self.get_neighbours(cell[0], cell[1], 2)
+            if len(tumor_nb) > 0:
+                tx, ty = tumor_nb[random.randint(1,len(tumor_nb)) - 1]
+                if self.I*10 >= random.randint(1, 100):
+                    self.field[tx, ty] = 0
+            
+            # Move to a neighbouring cell
+            free_nb = self.get_neighbours(cell[0], cell[1], 1)
+            if len(free_nb) > 0:
+                tx, ty = free_nb[random.randint(1,len(free_nb)) - 1]
+                self.immune[tx, ty] = self.immune[x, y] - 1
+                self.immune[x, y]   = 0
+            else:
+                self.immune[x, y]   = self.immune[x, y] - 1
+
+        # Save number of immune cells
+        self.wbc_number.append(len(self.immune_cells))
+
+    def animate(self, mode):
         """
         Creates and returns animation of the growth.
         
+        Parameters:
+            mode (int): create figure, save frame or display animation. (1-3)
+        
         Returns:
-            ArtistAnimation: the animation of the growth
+            ArtistAnimation: the animation of the growth (optional)
         """
         
-        return animation.ArtistAnimation(self.fig, self.images, interval=50, blit=True)
+        if mode == 1:
+            # Create the figure
+            self.fig, self.ax = plt.subplots()
+            self.ax.imshow(self.field)
+            self.ax.set_title(str(self.cycles)+ " hour cell growth")
+            self.ax.set_xlabel(str(self.side*10) +   " micrometers")
+            self.ax.set_ylabel(str(self.side*10) +   " micrometers")
+        elif mode == 2:
+            # Save the current frame
+            growth = self.ax.imshow(self.field, animated=True)
+            immune_coords = np.argwhere(self.immune > 0)
+            immune = self.ax.scatter(immune_coords[:,1], immune_coords[:,0], c='blue', s=10)
+            self.images.append([growth, immune])
+        elif mode == 3:
+            # Display the animation
+            return animation.ArtistAnimation(self.fig, self.images, interval=50, blit=True)
 
     def save_field_to_excel(self, file_name):
         """
@@ -237,30 +335,33 @@ class TModel:
         nonzero_field = self.field[self.field > 0]
 
         # Statistics
-        stats = {
-            "Min":       nonzero_field.min(),
-            "Max":       nonzero_field.max(),
-            "Mean":      nonzero_field.mean(),
-            "Std":       nonzero_field.std(),
-            "Var":       nonzero_field.var(),
-            "Median":    np.median(nonzero_field),
-            "Skew":      skew(nonzero_field.ravel()),
-            "Kurtosis":  kurtosis(nonzero_field.ravel()),
-            "Final STC": self.stc_number[self.cycles-1],
-            "Final RTC": self.rtc_number[self.cycles-1],
-        }
+        if nonzero_field.size != 0:
+            stats = {
+                "Min":       nonzero_field.min(),
+                "Max":       nonzero_field.max(),
+                "Mean":      nonzero_field.mean(),
+                "Std":       nonzero_field.std(),
+                "Var":       nonzero_field.var(),
+                "Median":    np.median(nonzero_field),
+                "Skew":      skew(nonzero_field.ravel()),
+                "Kurtosis":  kurtosis(nonzero_field.ravel()),
+                "Final STC": self.stc_number[self.cycles-1],
+                "Final RTC": self.rtc_number[self.cycles-1],
+                "Final WBC": self.wbc_number[self.cycles-1],
+            }
         
-        # Proliferation potentials
-        stats.update(self.get_prolif_potentials())
+            # Proliferation potentials
+            stats.update(self.get_prolif_potentials())
+                
+            # Cell Numbers
+            checkpoints = np.linspace(0, self.cycles - 1, int(self.cycles/10) + 1, dtype=int)
+            for idx in checkpoints:
+                hour = (idx + 1)
+                stats[f"{hour}h_STC"] = self.stc_number[idx]
+                stats[f"{hour}h_RTC"] = self.rtc_number[idx]
+                stats[f"{hour}h_WBC"] = self.wbc_number[idx]
             
-        # Cell Numbers
-        checkpoints = np.linspace(0, self.cycles - 1, 11, dtype=int)
-        for idx in checkpoints:
-            hour = (idx + 1)
-            stats[f"{hour}h_STC"] = self.stc_number[idx]
-        for idx in checkpoints:
-            hour = (idx + 1)
-            stats[f"{hour}h_RTC"] = self.rtc_number[idx]
+        else: stats = {"Status": "Extinct"}
     
         return stats
     
@@ -303,32 +404,29 @@ class TModel:
         # Create initial state
         if len(self.field) == 0: self.init_state()
         self.find_tumor_cells()
+        if len(self.immune) == 0:
+            self.immune = np.zeros((self.side, self.side))
         
         self.stc_number = []
         self.rtc_number = []
+        self.wbc_number = []
         
-        if animate:
-            self.fig, self.ax = plt.subplots()
-            self.ax.imshow(self.field)
-            self.ax.set_title(str(self.cycles)+ " hour cell growth")
-            self.ax.set_xlabel(str(self.side_length*10) + " micrometers")
-            self.ax.set_ylabel(str(self.side_length*10) + " micrometers")
+        if animate: self.animate(1)
 
         # Growth loop
         for c in range(self.cycles):
-            self.cell_action()
+            self.tumor_action()
+            self.immune_response()
             self.find_tumor_cells()
             self.count_tumor_cells()
-            if animate:
-                growth = self.ax.imshow(self.field, animated=True)
-                self.images.append([growth])
+            if animate: self.animate(2)
         
         # Store the results
         self.store_model()
         
         # Output settings
         if plot: self.plot_run(len(self.runs))
-        if animate: self.ani = self.animate_growth()
+        if animate: self.ani = self.animate(3)
         if stats: print(self.get_statistics())
         
     @measure_runtime
@@ -347,7 +445,8 @@ class TModel:
         stats = []
         
         for i in range(count):
-            self.field = init_field.copy()
+            self.field  = init_field.copy()
+            self.immune = []
             self.run_model(plot = False, animate = False, stats = False)
             stats.append(self.get_statistics())
         all_stats = pd.DataFrame(stats)
@@ -361,10 +460,12 @@ class TModel:
         
         result = {}
         
-        result["field"] = self.field
-        result["stc"]   = self.stc_number
-        result["rtc"]   = self.rtc_number
-        result["pp"]    = self.get_prolif_potentials().values()
+        result["immune"] = self.immune
+        result["field"]  = self.field
+        result["stc"]    = self.stc_number
+        result["rtc"]    = self.rtc_number
+        result["wbc"]    = self.wbc_number
+        result["pp"]     = self.get_prolif_potentials().values()
         
         # Stores data for plotting
         self.runs.append(result)     
@@ -388,15 +489,19 @@ class TModel:
                 - pp:   Columns for proliferation potential values
         """
         
-        base = [col for col in data.columns if not str(col).isdigit() and
-                "_STC" not in str(col) and "_RTC" not in str(col)]
+        base = [col for col in data.columns if not str(col).isdigit()
+                and "_STC" not in str(col)
+                and "_RTC" not in str(col)
+                and "_WBC" not in str(col)]
         stc  = sorted([col for col in data.columns if "_STC" in str(col)],
                       key=lambda x: int(str(x).split("h")[0]))
         rtc  = sorted([col for col in data.columns if "_RTC" in str(col)],
                       key=lambda x: int(str(x).split("h")[0]))
+        wbc  = sorted([col for col in data.columns if "_WBC" in str(col)],
+                      key=lambda x: int(str(x).split("h")[0]))
         pp   = sorted([col for col in data.columns if isinstance(col, int)])
         
-        return base, stc, rtc, pp
+        return base, stc, rtc, wbc, pp
 
     def plot_run(self, run):
         """
@@ -413,14 +518,18 @@ class TModel:
         fig, axs  = plt.subplots(1, 3, figsize=(21,5))
 
         axs[0].imshow(self.runs[run-1]["field"])
+        immune_coords = np.argwhere(self.runs[run-1]["immune"] > 0)
+        axs[0].scatter(immune_coords[:,1], immune_coords[:,0], c='blue', s=10)
+        
         axs[1].plot(self.runs[run-1]["stc"], 'C1', label='STC')
         axs[1].plot(self.runs[run-1]["rtc"], 'C2', label='RTC')
+        axs[1].plot(self.runs[run-1]["wbc"], 'C3', label='WBC')
         axs[2].bar(range(1, self.pmax + 2), self.runs[run-1]["pp"], edgecolor='black')
 
         # Titles/labels of the plots
         titles = [str(self.cycles)+ "h cell growth", "Cell count", "Value destribution"]
-        labs_x = [str(self.side_length*10) + " um", "Time (h)", "Proliferation potential"]
-        labs_y = [str(self.side_length*10) + " um", "Cell numbers", "Number of appearance"]
+        labs_x = [str(self.side*10) + " um", "Time (h)", "Proliferation potential"]
+        labs_y = [str(self.side*10) + " um", "Cell numbers", "Number of appearance"]
 
         fig.suptitle("Model " + str(run) + " Results", fontsize = 16)
         for i, ax in enumerate(axs):
@@ -444,25 +553,29 @@ class TModel:
             matplotlib.figure.Figure: The plots of the averages with SD values
         """
         
-        base_cols, stc_cols, rtc_cols, pp_cols = self.separate_columns(data)
+        base_cols, stc_cols, rtc_cols, wbc_cols, pp_cols = self.separate_columns(data)
         
         avg_stc = data[stc_cols].mean()
         std_stc = data[stc_cols].std()
         avg_rtc = data[rtc_cols].mean()
         std_rtc = data[rtc_cols].std()
+        avg_wbc = data[wbc_cols].mean()
+        std_wbc = data[wbc_cols].std()
         avg_pp  = data[pp_cols].mean()
         std_pp  = data[pp_cols].std()
         
         fig, [ax1, ax2] = plt.subplots(1, 2, figsize=(14, 5))
-        timepoints      = np.linspace(0, self.cycles - 1, 11)
+        timepoints      = np.linspace(0, self.cycles - 1, int(self.cycles/10) + 1)
         
         ax1.plot(timepoints, avg_stc, label='STC', color='C1')
         ax1.fill_between(timepoints, avg_stc - std_stc, avg_stc + std_stc,
                          color='C1', alpha=0.3)
-
         ax1.plot(timepoints, avg_rtc, label='RTC', color='C2')
         ax1.fill_between(timepoints, avg_rtc - std_rtc, avg_rtc + std_rtc,
                          color='C2', alpha=0.3)
+        ax1.plot(timepoints, avg_wbc, label='WBC', color='C3')
+        ax1.fill_between(timepoints, avg_wbc - std_wbc, avg_wbc + std_wbc,
+                         color='C3', alpha=0.3)
         
         ax1.set_title("Average Tumor Cell Count")
         ax1.set_xlabel("Model Time (hours)")
@@ -491,7 +604,7 @@ class TDashboard:
 
     def run_dashboard(self):
         """
-        The function that creates the entire streamlit dashboard for your model.
+        The function that creates the entire streamlit dashboard for the model.
         """
         
         st.set_page_config(layout="wide")
@@ -499,36 +612,54 @@ class TDashboard:
         self.col1, _, self.col3 = st.columns([4, 1, 12])
 
         with self.col1:
+            self.print_title("Model Parameters")
             self._initialize()
+            self.print_title("Initial State")
             self._modify_cell()
+            self.print_title("Execution")
             self._execute_model()
 
         with self.col3:
+            self.print_title("Last Simulation")
             self._visualize_run(len(self.model.runs))
+            self.print_title("Simulation Statistics")
             self._show_statistics()
+            self.print_title("Simulation Options")
             self._reset_save_stats()
+
+    def print_title(self, title):
+        """
+        The function that prints text as a title on the dashboard.
+        
+        Parameters:
+            title (string): The text to print
+        """
+
+        st.markdown(
+            f"<h2 style='text-align: center;'>{title}</h2>",
+            unsafe_allow_html=True
+        )
 
     def _initialize(self):
         """
         The function that sets the parameters and initializes the model.
         """
-        
-        st.markdown("<h2 style='text-align: center;'>Model Parameters</h2>", unsafe_allow_html=True)
 
-        self.model.side_length = st.slider("Side Length (10um)", 10, 200, value=self.model.side_length)
-        self.model.cycles      = st.slider("Model Duration (hours)", 50, 1000, value=self.model.cycles)
-        self.model.pmax        = st.slider("Max Proliferation Potential", 1, 20, value=self.model.pmax)
-        self.model.PA          = st.slider("Apoptosis Chance (RTC) (%)", 0, 100, value=self.model.PA)
-        self.model.CCT         = st.slider("Cell Cycle Time (hours)", 1, 48, value=self.model.CCT)
-        self.model.Dt          = st.slider("Time Step (days)", 0.01, 1.0, value=self.model.Dt, step=0.01)
-        self.model.PS          = st.slider("STC-STC Division Chance (%)", 0, 100, value=self.model.PS)
-        self.model.mu          = st.slider("Migration Capacity", 0, 10, value=self.model.mu)
+        self.model.cycles = st.slider("Model Duration (hours)", 50, 5000, value=self.model.cycles)
+        self.model.side   = st.slider("Field Side Length (10um)", 10, 200, value=self.model.side)
+        self.model.pmax   = st.slider("Max Proliferation Potential", 1, 20, value=self.model.pmax)
+        self.model.PA     = st.slider("Apoptosis Chance (RTC) (%)", 0, 100, value=self.model.PA)
+        self.model.CCT    = st.slider("Cell Cycle Time (hours)", 1, 48, value=self.model.CCT)
+        self.model.Dt     = st.slider("Time Step (days)", 0.01, 1.0, value=self.model.Dt, step=0.01)
+        self.model.PS     = st.slider("STC-STC Division Chance (%)", 0, 100, value=self.model.PS)
+        self.model.mu     = st.slider("Migration Capacity", 0, 10, value=self.model.mu)
+        self.model.I      = st.slider("Immune Strength", 0, 10, value=self.model.I)
 
         self.model.PP = int(self.model.CCT * self.model.Dt / 24 * 100)
         self.model.PM = 100 * self.model.mu / 24
 
         init_config = (
-            self.model.side_length, self.model.cycles, self.model.pmax,
+            self.model.side, self.model.cycles, self.model.pmax,
             self.model.PA, self.model.CCT, self.model.Dt, self.model.PS, self.model.mu
         )
         config_hash = hashlib.md5(str(init_config).encode()).hexdigest()
@@ -547,7 +678,8 @@ class TDashboard:
             or st.session_state.init_config_hash != config_hash
         ):
             self.model.init_state()
-            st.session_state.field = self.model.field.copy()
+            st.session_state.field  = self.model.field.copy()
+            st.session_state.immune = self.model.immune.copy()
             st.session_state.initialized = True
             st.session_state.init_config_hash = config_hash
 
@@ -555,11 +687,9 @@ class TDashboard:
         """
         The function for initial state modification logic.
         """
-        
-        st.markdown("<h2 style='text-align: center;'>Initial State</h2>", unsafe_allow_html=True)
 
-        x_coord = st.number_input("X Coordinate", 0, self.model.side_length - 1, value=self.model.side_length // 2)
-        y_coord = st.number_input("Y Coordinate", 0, self.model.side_length - 1, value=self.model.side_length // 2)
+        x_coord = st.number_input("X Coordinate", 0, self.model.side - 1, value=self.model.side // 2)
+        y_coord = st.number_input("Y Coordinate", 0, self.model.side - 1, value=self.model.side // 2)
         cell_value = st.number_input("Cell Value", 0, self.model.pmax + 1, value=self.model.pmax + 1)
 
         if st.button("Modify Cell"):
@@ -578,13 +708,12 @@ class TDashboard:
         The function for model running logic.
         """
         
-        st.markdown("<h2 style='text-align: center;'>Execution</h2>", unsafe_allow_html=True)
-        
-        rep = st.number_input("Model Repeats", 1)
+        rep = st.number_input("How many simulations?", 1)
         
         if st.button("Run Model"):
             for i in range(rep):
-                self.model.field = st.session_state.field.copy()
+                self.model.field  = st.session_state.field.copy()
+                self.model.immune = st.session_state.immune.copy()
                 self.model.run_model(plot = False, animate=False, stats=False)
 
             st.session_state.model_runs = self.model.runs
@@ -598,19 +727,19 @@ class TDashboard:
             run (int): which model execution to plot
         """
         
-        st.markdown("<h2 style='text-align: center;'>Visualization</h2>", unsafe_allow_html=True)
-        
         if "model_runs" not in st.session_state: return
                 
         latest = self.model.runs[run-1]
+        immune = latest["immune"]
         field  = latest["field"]
         stc    = latest["stc"]
         rtc    = latest["rtc"]
+        wbc    = latest["wbc"]
         pp     = latest["pp"]
 
-        heatmap    = self._create_heatmap(field)
+        heatmap    = self._create_heatmap(field, immune)
         bar_chart  = self._create_bar_chart(list(pp))
-        line_chart = self._create_line_chart(stc, rtc)
+        line_chart = self._create_line_chart(stc, rtc, wbc)
         
         col1, col2, col3 = st.columns(3)
         
@@ -621,45 +750,64 @@ class TDashboard:
         with col3:
             st.altair_chart(line_chart)
 
-    def _create_heatmap(self, field):
+    def _create_heatmap(self, tumor_field, immune_field=None):
         """
-        The function that creates an Altair heatmap of the field.
-        
+        Create an Altair heatmap of the tumor field with immune cells overlaid.
+    
         Parameters:
-            field (2D array-like): the field data for the heatmap
-            
+            tumor_field (2D array-like): tumor cell field
+            immune_field (2D array-like): immune cell field (1 where immune cell, 0 otherwise)
+    
         Returns:
-            Altair.Chart: represents the heatmap of the input field.
+            Altair.Chart: heatmap with immune overlay
         """
         
+        # --- Tumor field data ---
         heat_df = pd.DataFrame([
-            {"x": x, "y": y, "value": field[y, x]}
-            for y in range(field.shape[0])
-            for x in range(field.shape[1])
+            {"x": x, "y": y, "value": tumor_field[y, x]}
+            for y in range(tumor_field.shape[0])
+            for x in range(tumor_field.shape[1])
         ])
-        
+    
         heatmap = alt.Chart(heat_df).mark_rect().encode(
             x=alt.X("x:O", title="X"),
             y=alt.Y("y:O", sort="descending", title="Y"),
             color=alt.Color("value:Q", title="PP", scale=alt.Scale(scheme="viridis"))
         ).properties(
-            title="Tumor Field",
-            width='container',
+            title="Simulation Field",
+            width="container",
             height=500
         )
-            
+        
+        # --- Immune field data ---
+        if immune_field is not None:
+            immune_coords = np.argwhere(immune_field > 0)
+            immune_df = pd.DataFrame(immune_coords, columns=["y", "x"])  # note row,col → y,x
+        
+            immune_layer = alt.Chart(immune_df).mark_point(
+                color="blue", size=50, filled=True, shape="circle"
+            ).encode(
+                x=alt.X("x:O"),
+                y=alt.Y("y:O", sort="descending")
+            )
+        
+            # --- Combine layers ---
+            heatmap = (heatmap + immune_layer).properties(
+                title="Simulation Field",
+                width="container",
+                height=500
+            )
+    
         return heatmap
     
-    def _create_line_chart(self, stc, rtc, stc_l=None, stc_u=None, rtc_l=None, rtc_u=None):
+    def _create_line_chart(self, stc, rtc, wbc, stc_l=None, stc_u=None, rtc_l=None, rtc_u=None, wbc_l=None, wbc_u=None):
         """
         The function that creates an Altair line chart of the cell numbers.
         
         Parameters:
-            stc, rtc (list): a list of the cell numbers (mean or raw)
-            stc_l (list of float, optional): Lower bounds (e.g., mean - SD) for STC counts.
-            stc_u (list of float, optional): Upper bounds (e.g., mean + SD) for STC counts.
-            rtc_l (list of float, optional): Lower bounds (e.g., mean - SD) for RTC counts.
-            rtc_u (list of float, optional): Upper bounds (e.g., mean + SD) for RTC counts.
+            stc, rtc, wbc (list): a list of the cell and immune numbers (mean or raw)
+            stc_l, rtc_l, wbc_l (list of float, optional): Lower bounds (e.g., mean - SD) for cell counts.
+            stc_u, rtc_u, wbc_u (list of float, optional): Upper bounds (e.g., mean + SD) for cell counts.
             
         Returns:
             Altair.Chart: represents the line chart of the cell numbers
@@ -667,14 +815,14 @@ class TDashboard:
 
         timepoints = list(range(len(stc)))
         df = pd.DataFrame({
-            "Hour": timepoints * 2,
-            "Cell Type": ["STC"] * len(stc) + ["RTC"] * len(rtc),
-            "Mean": stc + rtc
+            "Hour": timepoints * 3,
+            "Cell Type": ["STC"] * len(stc) + ["RTC"] * len(rtc) + ["WBC"] * len(wbc),
+            "Mean": stc + rtc + wbc
         })
     
-        if stc_l and rtc_l:
-            df["Lower"] = stc_l + rtc_l
-            df["Upper"] = stc_u + rtc_u
+        if stc_l and rtc_l and wbc_l:
+            df["Lower"] = stc_l + rtc_l + wbc_l
+            df["Upper"] = stc_u + rtc_u + wbc_u
     
             area = alt.Chart(df).mark_area(opacity=0.3).encode(
                 x=alt.X("Hour:Q", title="Time (hours)"),
@@ -692,7 +840,7 @@ class TDashboard:
         )
 
         chart = (area + line) if area else line
-        return chart.properties(title="Tumor Cell Counts Over Time", height=500)
+        return chart.properties(title="Cell Counts Over Time", height=500)
     
     def _create_bar_chart(self, pp, std=None):
         """
@@ -735,33 +883,35 @@ class TDashboard:
 
         df = pd.DataFrame(self.model.stats)
         
-        base_cols, stc_cols, rtc_cols, pp_cols = self.model.separate_columns(df)
+        base_cols, stc_cols, rtc_cols, wbc_cols, pp_cols = self.model.separate_columns(df)
         
-        df.index  = df.index + 1
+        df.index = df.index + 1
 
-        # Display DataFrames
-        st.markdown("<h2 style='text-align: center;'>Statistical Properties</h2>", unsafe_allow_html=True)
-        st.dataframe(df[base_cols])
-        st.markdown("<h2 style='text-align: center;'>Proliferation Potentials</h2>", unsafe_allow_html=True)
-        st.dataframe(df[pp_cols])
-        st.markdown("<h2 style='text-align: center;'>Cell Numbers (STC)</h2>", unsafe_allow_html=True)
-        st.dataframe(df[stc_cols])
-        st.markdown("<h2 style='text-align: center;'>Cell Numbers (RTC)</h2>", unsafe_allow_html=True)
-        st.dataframe(df[rtc_cols])
-        st.markdown("<h2 style='text-align: center;'>Model Averages</h2>", unsafe_allow_html=True)
+        # Display Statistics
+        mean_row = df[base_cols].mean(numeric_only=True)
+        std_row  = df[base_cols].std(numeric_only=True)
+        mean_row.name = "Mean"
+        std_row.name  = "Std"
+        full_stats = pd.concat([df[base_cols], mean_row.to_frame().T, std_row.to_frame().T])
+        st.dataframe(full_stats)
+
+        self.print_title("Simulation Averages")
 
         # Create avg charts
         stc_means = df[stc_cols].mean()
         stc_stds  = df[stc_cols].std()
         rtc_means = df[rtc_cols].mean()
         rtc_stds  = df[rtc_cols].std()
+        wbc_means = df[wbc_cols].mean()
+        wbc_stds  = df[wbc_cols].std()
         pp_means  = df[pp_cols].mean()
         pp_stds   = df[pp_cols].std()
         
         line_chart = self._create_line_chart(
-            list(stc_means.values), list(rtc_means.values),
+            list(stc_means.values), list(rtc_means.values), list(wbc_means.values),
             list((stc_means - stc_stds).values), list((stc_means + stc_stds).values),
-            list((rtc_means - rtc_stds).values), list((rtc_means + rtc_stds).values)
+            list((rtc_means - rtc_stds).values), list((rtc_means + rtc_stds).values),
+            list((wbc_means - wbc_stds).values), list((wbc_means + wbc_stds).values)
         )
         
         bar_chart = self._create_bar_chart(list(pp_means.values), list(pp_stds.values))
@@ -778,21 +928,42 @@ class TDashboard:
         """
         
         if "model_stats" in st.session_state:
-            if st.button("Reset Model Executions and Data"):
-                del st.session_state.model_stats
-                self.model.stats.clear()
-                del st.session_state.model_runs
-                self.model.runs.clear()
-                
-                st.success("Executions have been reset.")
-
-            buffer = io.BytesIO()
-            pd.DataFrame(self.model.stats).to_excel(buffer, index=False)
-            buffer.seek(0)
-
-            st.download_button(
-                label="Download Statistics (xlsx)",
-                data=buffer,
-                file_name="tumor_model_statistics.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+            col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
+            selected_run = None
+            visualize = False
+            
+            with col1:
+                if st.button("Reset Model Executions and Data", use_container_width=True):
+                    del st.session_state.model_stats
+                    self.model.stats.clear()
+                    del st.session_state.model_runs
+                    self.model.runs.clear()
+                    
+                    st.success("Executions have been reset.")
+            with col2:
+                buffer = io.BytesIO()
+                pd.DataFrame(self.model.stats).to_excel(buffer, index=False)
+                buffer.seek(0)
+    
+                st.download_button(
+                    label="Download Statistics (xlsx)",
+                    data=buffer,
+                    file_name="simulation_statistics.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
+            with col3:
+                run_select = st.selectbox(
+                    "", list(range(1, len(self.model.runs) + 1)),
+                    placeholder="Select simulation",
+                    label_visibility="collapsed",
+                    index=None
+                    )
+                selected_run = run_select
+            with col4:
+                if st.button("Visualize Selected Simulation", use_container_width=True):
+                    if selected_run: visualize = True
+                    else: st.warning('Please select a simulation!')
+            if visualize:
+                self.print_title("Selected Simulation")
+                self._visualize_run(selected_run)
