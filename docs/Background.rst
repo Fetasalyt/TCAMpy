@@ -1,7 +1,7 @@
 Theoretical Background
 ======================
 
-The theoretical background for this model is based on the work of Carlos A Valentim, José A Rabi and Sergio A David.
+The theoretical background for this model is based on the work of Carlos A Valentim, José A Rabi and Sergio A David. I expanded this model by simulating an immune response during the growth of the tumor cells. Other ideas, like mutations and nutrition may also be implemented in the future.
 
 Valentim CA, Rabi JA, David SA. Cellular-automaton model for tumor growth dynamics: Virtualization of different scenarios.
 Comput Biol Med. 2023 Feb;153:106481. doi: 10.1016/j.compbiomed.2022.106481. Epub 2022 Dec 28. PMID: 36587567.
@@ -19,5 +19,7 @@ At every cycle each cell chooses from four different options. First, they can di
 of CCT*dt/24 (where CCT is the cell cycle time, dt is the time step in the model). In case of no proliferation, they can migrate to one of the eight neighbouring cells. The probability
 of this action is mu*dt (mu is the migration capacity of the cell). If none of these actions happen, the cell stays quiescent. Quiescence is forced if there is no free space around the
 a surviving cell.
+
+In each cycle, after the tumor growth, immune cells may also appear and act. They spawn randomly on the inner edge of the field and every time step they move to a free neighbouring spot. If they get in contact with a cancer cell (they move next to one), they might kill it. After a certain amount of life, the immune cells die. The spawn rate, kill chance and lifespan is influenced by a single ‘immune strength (I)’ parameter, and the spawn rate also increases with the size of the tumor (but has a maximum value based on I).
 
 All these probabilites, the maximum proliferation potential value, model duration and area size is a parameter of the model, which can be set by the user.
