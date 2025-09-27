@@ -10,7 +10,7 @@ Create a model and execute it one time. Plot the results, animate and show the s
 
     import TCAMpy as tcam
 
-    M = tcam.TModel(50, 500, 10, 1, 24, 1/24, 15, 4)
+    M = tcam.TModel(50, 500, 10, 1, 24, 1/24, 15, 4, 5)
     M.run_model(plot = True, animate = True, stats = True)
 
 Multiple executions
@@ -40,7 +40,7 @@ Modify the initial state by defining/changing M.field or calling 'mod_cell()' (c
     import TCAMpy as tcam
     import numpy as np
 
-    M = tcam.TModel(50, 500, 10, 1, 24, 1/24, 15, 4)
+    M = tcam.TModel(50, 500, 10, 1, 24, 1/24, 15, 4, 5)
 
     M.field = (M.pmax+1) * np.eye(M.side_length)
     M.field[0][0] = 0
@@ -57,7 +57,7 @@ Create a streamlit dashboard. Run the file containing the code with streamlit to
 
     import TCAMpy as tcam
 
-    M = tcam.TModel(50, 500, 10, 1, 24, 1/24, 15, 4)
+    M = tcam.TModel(50, 500, 10, 1, 24, 1/24, 15, 4, 5)
 
     D = tcam.TDashboard(M)
     D.run_dashboard()
