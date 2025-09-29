@@ -20,11 +20,14 @@ and a histogram of the average proliferation potentials can be plotted with stan
 
 ![Averages plot example](https://github.com/Fetasalyt/TCAMpy/blob/main/Images/avg_example.png?raw=true)
 
+A Streamlit dashboard can be created, using the module, for a graphical interface, or it can be used online on the link below without writing a single line of code.
+
 ---
 
 ## Links
 
 - [Homepage](https://github.com/FetasaLYt/TCAMpy)
 - [Documentation](https://tcampy.readthedocs.io/en/latest/)
+- [Online dashboard](https://tcampy.streamlit.app/)
 - [Repository](https://github.com/FetasaLYt/TCAMpy)
 - [Issues](https://github.com/FetasaLYt/TCAMpy/issues)
