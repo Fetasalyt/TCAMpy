@@ -96,5 +96,6 @@ You will need to run the file containing this cod in your command line with stre
   streamlit run file_name.py
 
 A dashboard will be created, where you have full control over the model. You can set the parameters using the sliders, run the model, view plots as well as statistics.
+This dashboard can be used online with Streamlit Community Cloud, without any coding: https://tcampy.streamlit.app/
 
 You also have access to commands to save results (the field or the statistics) to an excel file, or create your own run function/loop by individually accessing cycles and cells. For details on those functions check the API Documentation.
