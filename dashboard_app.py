@@ -2,10 +2,6 @@ import streamlit as st
 import TCAMpy as tcam
 
 def main():
-    st.set_page_config(
-        page_title="TCAMpy Dashboard",
-        layout="wide"
-    )
 
     # --- Create model ---
     model = tcam.TModel(
