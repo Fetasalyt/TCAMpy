@@ -66,6 +66,8 @@ Create a streamlit dashboard. Run the file containing the code with streamlit to
 
   streamlit run file_name.py
 
+This dashboard can be used online with Streamlit Community Cloud, without any coding: https://tcampy.streamlit.app/
+
 Example files
 -------------
 
