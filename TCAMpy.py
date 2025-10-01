@@ -9,6 +9,7 @@ import streamlit as st
 from functools import wraps
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+from streamlit_javascript import st_javascript
 from scipy.stats import skew, kurtosis
 
 class TModel:
@@ -609,22 +610,18 @@ class TDashboard:
         
         st.set_page_config(layout="wide")
         st.markdown("<h1 style='text-align: center;'>TCAMpy</h1>", unsafe_allow_html=True)
+        screen_width = st_javascript("window.innerWidth", key="screen_width")
+        
         self.col1, _, self.col3 = st.columns([4, 1, 12])
 
         with self.col1:
-            self.print_title("Model Parameters")
             self._initialize()
-            self.print_title("Initial State")
             self._modify_cell()
-            self.print_title("Execution")
             self._execute_model()
 
         with self.col3:
-            self.print_title("Last Simulation")
-            self._visualize_run(len(self.model.runs))
-            self.print_title("Simulation Statistics")
+            self._visualize_run("Last Simulation", len(self.model.runs))
             self._show_statistics()
-            self.print_title("Simulation Options")
             self._reset_save_stats()
 
     def print_title(self, title):
@@ -639,11 +636,29 @@ class TDashboard:
             f"<h2 style='text-align: center;'>{title}</h2>",
             unsafe_allow_html=True
         )
+    
+    def get_plot_height(self, col_width, scaler):
+        """
+        The function that calculates the height of plots
+        based on screen width, column width and a scaler.
+        
+        Parameters:
+            col (int): relative column width
+            scalar (float): scaler for column width
+        """
+        
+        screen_width = st.session_state.get("screen_width")
+        col_width_px = screen_width * (col_width / sum([4, 1, 12]))
+        plots_height = int(col_width_px * scaler)
+        
+        return plots_height
 
     def _initialize(self):
         """
         The function that sets the parameters and initializes the model.
         """
+
+        self.print_title("Model Parameters")
 
         self.model.cycles = st.slider("Model Duration (hours)", 50, 5000, value=self.model.cycles)
         self.model.side   = st.slider("Field Side Length (10um)", 10, 200, value=self.model.side)
@@ -687,10 +702,13 @@ class TDashboard:
         """
         The function for initial state modification logic.
         """
+        
+        self.print_title("Initial State")
 
         x_coord = st.number_input("X Coordinate", 0, self.model.side - 1, value=self.model.side // 2)
         y_coord = st.number_input("Y Coordinate", 0, self.model.side - 1, value=self.model.side // 2)
         cell_value = st.number_input("Cell Value", 0, self.model.pmax + 1, value=self.model.pmax + 1)
+        plots_height = self.get_plot_height(4, 0.9)
 
         if st.button("Modify Cell"):
             self.model.field = st.session_state.field.copy()
@@ -699,7 +717,7 @@ class TDashboard:
             st.success(f"Cell modified at ({x_coord}, {y_coord}) to {cell_value}")
 
         field   = st.session_state.field
-        heatmap = self._create_heatmap(field)
+        heatmap = self._create_heatmap(plots_height, field)
         
         st.altair_chart(heatmap, use_container_width=True)
 
@@ -707,6 +725,8 @@ class TDashboard:
         """
         The function for model running logic.
         """
+        
+        self.print_title("Execution")
         
         rep = st.number_input("How many simulations?", 1)
         
@@ -719,44 +739,53 @@ class TDashboard:
             st.session_state.model_runs = self.model.runs
             st.session_state.model_stats = self.model.stats
 
-    def _visualize_run(self, run):
+    def _visualize_run(self, title, run):
         """
         The function for the result visualization logic.
-        
+    
         Parameters:
+            title (string): title of the visualization
             run (int): which model execution to plot
         """
-        
-        if "model_runs" not in st.session_state: return
-                
-        latest = self.model.runs[run-1]
+    
+        if "model_runs" not in st.session_state:
+            st.warning("Simulation results will appear here...")
+            return
+        self.print_title(title)
+    
+        # --- Get latest run ---
+        latest = self.model.runs[run - 1]
         immune = latest["immune"]
         field  = latest["field"]
         stc    = latest["stc"]
         rtc    = latest["rtc"]
         wbc    = latest["wbc"]
         pp     = latest["pp"]
-
-        heatmap    = self._create_heatmap(field, immune)
-        bar_chart  = self._create_bar_chart(list(pp))
-        line_chart = self._create_line_chart(stc, rtc, wbc)
+    
+        plots_height = self.get_plot_height(12, 0.3)
         
+        # --- Create charts ---
+        heatmap    = self._create_heatmap(plots_height, field, immune)
+        bar_chart  = self._create_bar_chart(plots_height, list(pp))
+        line_chart = self._create_line_chart(plots_height, stc, rtc, wbc)
+    
+        # --- Get screen width (from session_state, must be set elsewhere with JS snippet) ---
+          # default to wide
+    
+        # --- Layout rules ---
         col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            st.altair_chart(heatmap)
-        with col2:
-            st.altair_chart(bar_chart)
-        with col3:
-            st.altair_chart(line_chart)
+        with col1: st.altair_chart(heatmap, use_container_width=True)
+        with col2: st.altair_chart(bar_chart, use_container_width=True)
+        with col3: st.altair_chart(line_chart, use_container_width=True)
 
-    def _create_heatmap(self, tumor_field, immune_field=None):
+    def _create_heatmap(self, h, tumor_field, immune_field=None):
         """
         Create an Altair heatmap of the tumor field with immune cells overlaid.
     
         Parameters:
+            h (int): the height of the plot
             tumor_field (2D array-like): tumor cell field
-            immune_field (2D array-like): immune cell field (1 where immune cell, 0 otherwise)
+            immune_field (2D array-like): immune cell field
     
         Returns:
             Altair.Chart: heatmap with immune overlay
@@ -775,17 +804,17 @@ class TDashboard:
             color=alt.Color("value:Q", title="PP", scale=alt.Scale(scheme="viridis"))
         ).properties(
             title="Simulation Field",
-            width="container",
-            height=500
+            width='container',
+            height=h
         )
         
         # --- Immune field data ---
         if immune_field is not None:
             immune_coords = np.argwhere(immune_field > 0)
-            immune_df = pd.DataFrame(immune_coords, columns=["y", "x"])  # note row,col → y,x
+            immune_df = pd.DataFrame(immune_coords, columns=["y", "x"])
         
             immune_layer = alt.Chart(immune_df).mark_point(
-                color="blue", size=50, filled=True, shape="circle"
+                color="blue", size=h/20, filled=True, shape="circle"
             ).encode(
                 x=alt.X("x:O"),
                 y=alt.Y("y:O", sort="descending")
@@ -794,17 +823,21 @@ class TDashboard:
             # --- Combine layers ---
             heatmap = (heatmap + immune_layer).properties(
                 title="Simulation Field",
-                width="container",
-                height=500
+                width='container',
+                height=h
             )
     
         return heatmap
     
-    def _create_line_chart(self, stc, rtc, wbc, stc_l=None, stc_u=None, rtc_l=None, rtc_u=None, wbc_l=None, wbc_u=None):
+    def _create_line_chart(
+            self, h, stc, rtc, wbc, stc_l=None, stc_u=None,
+            rtc_l=None, rtc_u=None, wbc_l=None, wbc_u=None
+        ):
         """
         The function that creates an Altair line chart of the cell numbers.
         
         Parameters:
+            h (int): the height of the plot
             stc, rtc, wbc (list): a list of the cell and immune numbers (mean or raw)
             stc_l, rtc_l, wbc_l (list of float, optional): Lower bounds (e.g., mean - SD) for cell counts.
             stc_u, rtc_u, wbc_u (list of float, optional): Upper bounds (e.g., mean + SD) for cell counts.
@@ -840,13 +873,14 @@ class TDashboard:
         )
 
         chart = (area + line) if area else line
-        return chart.properties(title="Cell Counts Over Time", height=500)
+        return chart.properties(title="Cell Counts Over Time", height=h)
     
-    def _create_bar_chart(self, pp, std=None):
+    def _create_bar_chart(self, h, pp, std=None):
         """
         Creates an Altair bar chart for proliferation potential distribution.
     
         Parameters:
+            h (int): the height of the plot
             pp (list of float or int): Mean or raw counts of cells per proliferation potential class
             std (list of float, optional): Standard deviation for each class
     
@@ -872,7 +906,7 @@ class TDashboard:
             )
             chart = chart + error
     
-        return chart.properties(title="Proliferation Potential Distribution", height=500)
+        return chart.properties(title="Proliferation Potential Distribution", height=h)
 
     def _show_statistics(self):
         """
@@ -880,6 +914,10 @@ class TDashboard:
         """
         
         if not self.model.stats: return
+        
+        self.print_title("All Simulations")
+
+        plots_height = self.get_plot_height(12, 0.4)
 
         df = pd.DataFrame(self.model.stats)
         
@@ -895,8 +933,6 @@ class TDashboard:
         full_stats = pd.concat([df[base_cols], mean_row.to_frame().T, std_row.to_frame().T])
         st.dataframe(full_stats)
 
-        self.print_title("Simulation Averages")
-
         # Create avg charts
         stc_means = df[stc_cols].mean()
         stc_stds  = df[stc_cols].std()
@@ -907,14 +943,14 @@ class TDashboard:
         pp_means  = df[pp_cols].mean()
         pp_stds   = df[pp_cols].std()
         
-        line_chart = self._create_line_chart(
+        line_chart = self._create_line_chart(plots_height,
             list(stc_means.values), list(rtc_means.values), list(wbc_means.values),
             list((stc_means - stc_stds).values), list((stc_means + stc_stds).values),
             list((rtc_means - rtc_stds).values), list((rtc_means + rtc_stds).values),
             list((wbc_means - wbc_stds).values), list((wbc_means + wbc_stds).values)
         )
         
-        bar_chart = self._create_bar_chart(list(pp_means.values), list(pp_stds.values))
+        bar_chart = self._create_bar_chart(plots_height, list(pp_means.values), list(pp_stds.values))
         
         col1, col2 = st.columns(2)
         with col1:
@@ -928,6 +964,7 @@ class TDashboard:
         """
         
         if "model_stats" in st.session_state:
+            self.print_title("Simulation Options")
             col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
             selected_run = None
             visualize = False
@@ -944,7 +981,7 @@ class TDashboard:
                 buffer = io.BytesIO()
                 pd.DataFrame(self.model.stats).to_excel(buffer, index=False)
                 buffer.seek(0)
-    
+
                 st.download_button(
                     label="Download Statistics (xlsx)",
                     data=buffer,
@@ -965,5 +1002,4 @@ class TDashboard:
                     if selected_run: visualize = True
                     else: st.warning('Please select a simulation!')
             if visualize:
-                self.print_title("Selected Simulation")
-                self._visualize_run(selected_run)
+                self._visualize_run("Selected Simulation", selected_run)
