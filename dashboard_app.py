@@ -13,7 +13,8 @@ def main():
         1/24,     # Dt
         15,       # PS
         4,        # mu
-        5         # I
+        5,        # I
+        10        # M
     )
 
     # --- Create dashboard ---
