@@ -1175,7 +1175,7 @@ class TDashboard:
         uploaded_file = st.file_uploader("Upload CSV dataset", type=["csv"])
         if uploaded_file is not None:
             df = pd.read_csv(uploaded_file)
-            st.write(Uploaded dataset preview:")
+            st.write("Uploaded dataset preview:")
             st.dataframe(df.head())
     
             # Choose target column
