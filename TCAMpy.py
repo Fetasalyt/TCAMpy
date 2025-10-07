@@ -1120,7 +1120,7 @@ class TDashboard:
         Uses the TML class to generate simulation data.
         """
 
-        self.print_title("Machine Learning Data Generator")
+        self.print_title("Simulation Data Generator")
 
         # Initialize TML
         tml = TML(self.model)
@@ -1168,7 +1168,7 @@ class TDashboard:
         Streamlit UI for model training and prediction using the TML class.
         """
         
-        self.print_title("Train model on dataset")
+        self.print_title("Model Trainer and Predictor")
 
         tml = TML(self.model)
     
@@ -1201,12 +1201,15 @@ class TDashboard:
                 st.write(f"**MAE:** {metrics['MAE']:.3f}")
     
                 # Store trained model for later prediction
-                self.trained_tml = tml
+                st.session_state["trained_tml"] = tml
+                st.session_state["target"] = target
         else:
             st.info("Please upload a dataset to train a model.")
 
-        if hasattr(self, "trained_tml") and self.trained_tml.trained_model is not None:
-            feature_cols = self.trained_tml.feature_columns
+        if "trained_tml" in st.session_state:
+            trained_tml = st.session_state["trained_tml"]
+            target = st.session_state.get("target", "Target")
+            feature_cols = trained_tml.feature_columns
     
             # Numeric inputs for each feature
             new_params = []
@@ -1221,7 +1224,7 @@ class TDashboard:
     
             if st.button("🔮 Predict New", use_container_width=True):
                 try:
-                    prediction = self.trained_tml.predict_new(new_params)
+                    prediction = trained_tml.predict_new(new_params)
                     st.success(f"🎯 Predicted {target}: **{prediction:.3f}**")
                 except Exception as e:
                     st.error(f"Prediction failed: {e}")
