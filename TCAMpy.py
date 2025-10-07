@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from streamlit_javascript import st_javascript
 from scipy.stats import skew, kurtosis
+import sklearn
 
 class TModel:
     """
