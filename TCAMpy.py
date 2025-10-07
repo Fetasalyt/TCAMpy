@@ -1189,7 +1189,7 @@ class TDashboard:
             if st.button("Train Model", use_container_width=True):
                 with st.spinner("Training model..."):
                     model, metrics = tml.train_predictor(
-                        file=uploaded_file,
+                        file=df,
                         target=target,
                         test_size=test_size,
                         random_state=random_state,
@@ -1319,8 +1319,11 @@ class TML:
             model (RandomForestRegressor): Trained model
             metrics (dict): R^2 and MAE metrics on test set
         """
-    
-        df = pd.read_csv(file)
+
+        if isinstance(file, pd.DataFrame):
+            df = file
+        else:
+            df = pd.read_csv(file)
         x  = df[df.columns[0:10]]
         y  = df[target]
     
