@@ -688,19 +688,24 @@ class TDashboard:
         st.set_page_config(layout="wide")
         st.markdown("<h1 style='text-align: center;'>TCAMpy</h1>", unsafe_allow_html=True)
         self.screen_width = st_javascript("window.innerWidth", key="screen_width")
+
+        tab1, tab2 = st.tabs(["Simulation", "Machine Learning"])
+        with tab1:
+            self.columns = [4, 1, 12]
+            self.col1, _, self.col3 = st.columns(self.columns)
+
+            with self.col1:
+                self._initialize()
+                self._modify_cell()
+                self._execute_model()
+
+            with self.col3:
+                self._visualize_run("Last Simulation", len(self.model.runs))
+                self._show_statistics()
+                self._reset_save_stats()
         
-        self.columns = [4, 1, 12]
-        self.col1, _, self.col3 = st.columns(self.columns)
-
-        with self.col1:
-            self._initialize()
-            self._modify_cell()
-            self._execute_model()
-
-        with self.col3:
-            self._visualize_run("Last Simulation", len(self.model.runs))
-            self._show_statistics()
-            self._reset_save_stats()
+        with tab2:
+            self._simdata_generator()
 
     def print_title(self, title):
         """
@@ -1105,6 +1110,55 @@ class TDashboard:
                     else: st.warning('Please select a simulation!')
             if visualize:
                 self._visualize_run("Selected Simulation", selected_run)
+
+    def _simdata_generator(self):
+        """
+        The Machine Learning tab for dataset generation and download.
+        Uses the TML class to generate simulation data.
+        """
+
+        self.print_title("Machine Learning Data Generator")
+
+        # Initialize TML
+        tml = TML(self.model)
+
+        st.write("Select randomization ranges for each parameter:")
+
+        # Build parameter range inputs dynamically
+        param_ranges = {}
+        for param, default_val in tml.default_params.items():
+            col1, col2 = st.columns(2)
+            with col1:
+                low = st.number_input(
+                    f"{param} (min)", 
+                    value=float(default_val) * 0.8, 
+                    key=f"{param}_low"
+                )
+            with col2:
+                high = st.number_input(
+                    f"{param} (max)", 
+                    value=float(default_val) * 1.2, 
+                    key=f"{param}_high"
+                )
+            param_ranges[param] = (low, high)
+
+        n = st.number_input("Number of simulations", 5, 500, 50, step=5)
+
+        # Run simulation button
+        if st.button("Generate Dataset", use_container_width=True):
+            with st.spinner("Running simulations..."):
+                df = tml.generate_dataset(n=n, random_params=param_ranges)
+            st.success(f"Dataset generated successfully ({len(df)} rows).")
+
+            # Allow CSV download
+            csv = df.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                label="Download Dataset (.csv)",
+                data=csv,
+                file_name="tumor_dataset.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
 
 
 class TML:
