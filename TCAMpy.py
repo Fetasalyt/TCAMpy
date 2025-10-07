@@ -45,7 +45,6 @@ class TModel:
         self.I = I
         self.M = M
         
-        
         # Single model data
         self.stc_number = []
         self.rtc_number = []
@@ -698,14 +697,18 @@ class TDashboard:
                 self._initialize()
                 self._modify_cell()
                 self._execute_model()
-
             with self.col3:
                 self._visualize_run("Last Simulation", len(self.model.runs))
                 self._show_statistics()
                 self._reset_save_stats()
         
         with tab2:
-            self._simdata_generator()
+            col1, col2 = st.columns(2)
+
+            with col1:
+                self._simdata_generator()
+            with col2:
+                self._train_and_predict()
 
     def print_title(self, title):
         """
@@ -1160,6 +1163,71 @@ class TDashboard:
                 use_container_width=True
             )
 
+    def _train_and_predict(self):
+        """
+        Streamlit UI for model training and prediction using the TML class.
+        """
+        
+        self.print_title("Train model on dataset")
+
+        tml = TML(self.model)
+    
+        uploaded_file = st.file_uploader("Upload CSV dataset", type=["csv"])
+        if uploaded_file is not None:
+            df = pd.read_csv(uploaded_file)
+            st.write(Uploaded dataset preview:")
+            st.dataframe(df.head())
+    
+            # Choose target column
+            target = st.selectbox("Select target attribute", df.columns, index=len(df.columns) - 1)
+    
+            # Three sliders for model parameters
+            test_size = st.slider("Test Size", 0.1, 0.5, 0.2, step=0.05)
+            random_state = st.slider("Random Seed", 0, 100, 42, step=1)
+            n_estimators = st.slider("Number of Trees (n_estimators)", 50, 500, 200, step=50)
+    
+            if st.button("Train Model", use_container_width=True):
+                with st.spinner("Training model..."):
+                    model, metrics = tml.train_predictor(
+                        file=uploaded_file,
+                        target=target,
+                        test_size=test_size,
+                        random_state=random_state,
+                        n_estimators=n_estimators
+                    )
+    
+                st.success(f"Model trained successfully!")
+                st.write(f"**R²:** {metrics['R2']:.3f}")
+                st.write(f"**MAE:** {metrics['MAE']:.3f}")
+    
+                # Store trained model for later prediction
+                self.trained_tml = tml
+        else:
+            st.info("Please upload a dataset to train a model.")
+
+        if hasattr(self, "trained_tml") and self.trained_tml.trained_model is not None:
+            feature_cols = self.trained_tml.feature_columns
+    
+            # Numeric inputs for each feature
+            new_params = []
+            self.print_title("Predict for new instance")
+            for col in feature_cols:
+                val = st.number_input(f"{col}", value=1.0, key=f"pred_{col}")
+                new_params.append(val)
+    
+            # Target selector (for user clarity, though single-target regression)
+            st.markdown("#### Select Target to Predict:")
+            st.text(f"Predicting: {target}")
+    
+            if st.button("🔮 Predict New", use_container_width=True):
+                try:
+                    prediction = self.trained_tml.predict_new(new_params)
+                    st.success(f"🎯 Predicted {target}: **{prediction:.3f}**")
+                except Exception as e:
+                    st.error(f"Prediction failed: {e}")
+        else:
+            st.info("Train a model first to enable prediction.")
+
 
 class TML:
     """
@@ -1236,7 +1304,7 @@ class TML:
     def train_predictor(
             self, file, target, test_size=0.2, 
             random_state=42, n_estimators=200
-            ):
+        ):
         """
         Trains a regression model to predict final tumor size based on simulation parameters.
     
