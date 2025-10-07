@@ -1137,13 +1137,13 @@ class TDashboard:
             with col1:
                 low = st.number_input(
                     f"{param} (min)", 
-                    value=float(default_val) * 0.5, 
+                    value=float(default_val) * 0.8, 
                     key=f"{param}_low"
                 )
             with col2:
                 high = st.number_input(
                     f"{param} (max)", 
-                    value=float(default_val) * 2, 
+                    value=float(default_val) * 1.5, 
                     key=f"{param}_high"
                 )
             param_ranges[param] = (low, high)
@@ -1299,6 +1299,7 @@ class TML:
             for k, v in params.items():
                 run_stats[k] = v
             run_stats["Tumor size"] = np.count_nonzero(model.field)
+            run_stats["Confluence"] = np.count_nonzero(model.field)/model.field.size*100
             stats.append(run_stats)
 
         if stats:
