@@ -1212,10 +1212,10 @@ class TML:
         for i in tqdm(range(n), desc="Generating simulations"):
             params = self.default_params.copy()
             for key, (low, high) in random_params.items():
-                if type(params[key]) == int:
-                    params[key] = random.randint(low, high)
+                if isinstance(params[key], int):
+                    params[key] = random.randint(int(low), int(high))
                 else:
-                    params[key] = random.uniform(low, high)
+                    params[key] = random.uniform(float(low), float(high))
 
             # Run simulation
             model = TModel(**params)
