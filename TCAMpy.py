@@ -1231,6 +1231,7 @@ class TML:
             df = pd.DataFrame(stats)
             df.to_csv(output_file, index=False)
             print(f"Dataset saved to {output_file} ({len(df)} runs)")
+            return df
             
     def train_predictor(
             self, file, target, test_size=0.2, 
