@@ -398,17 +398,18 @@ class TModel:
         # Statistics
         if nonzero_field.size != 0:
             stats = {
-                "Min":       nonzero_field.min(),
-                "Max":       nonzero_field.max(),
-                "Mean":      nonzero_field.mean(),
-                "Std":       nonzero_field.std(),
-                "Var":       nonzero_field.var(),
-                "Median":    np.median(nonzero_field),
-                "Skew":      skew(nonzero_field.ravel()),
-                "Kurtosis":  kurtosis(nonzero_field.ravel()),
-                "Final STC": self.stc_number[self.cycles-1],
-                "Final RTC": self.rtc_number[self.cycles-1],
-                "Final WBC": self.wbc_number[self.cycles-1],
+                "Min":        nonzero_field.min(),
+                "Max":        nonzero_field.max(),
+                "Mean":       nonzero_field.mean(),
+                "Std":        nonzero_field.std(),
+                "Median":     np.median(nonzero_field),
+                "Skew":       skew(nonzero_field.ravel()),
+                "Kurtosis":   kurtosis(nonzero_field.ravel()),
+                "Final STC":  self.stc_number[self.cycles-1],
+                "Final RTC":  self.rtc_number[self.cycles-1],
+                "Final WBC":  self.wbc_number[self.cycles-1],
+                "Tumor Size": nonzero_field.size,
+                "Confluence": nonzero_field.size/self.field.size*100,
             }
         
             # Proliferation potentials
@@ -423,7 +424,6 @@ class TModel:
                 stats[f"{hour}h_WBC"] = self.wbc_number[idx]
             
         else: stats = {"Status": "Extinct"}
-    
         return stats
     
     def save_statistics(self, file_name):
@@ -491,7 +491,10 @@ class TModel:
         # Output settings
         if plot: self.plot_run(len(self.runs))
         if animate: self.ani = self.animate(3)
-        if stats: print(self.get_statistics())
+        if stats:
+            df = pd.DataFrame(self.stats)
+            base_cols = self.separate_columns(df)[0]
+            print(df[base_cols])
         
     @measure_runtime
     def run_multimodel(self, count, init_field):
@@ -688,7 +691,7 @@ class TDashboard:
         st.markdown("<h1 style='text-align: center;'>TCAMpy</h1>", unsafe_allow_html=True)
         self.screen_width = st_javascript("window.innerWidth", key="screen_width")
 
-        tab1, tab2 = st.tabs(["Simulation", "Machine Learning"])
+        tab1, tab2 = st.tabs(["SIMULATION", "MACHINE LEARNING"])
         with tab1:
             self.columns = [4, 1, 12]
             self.col1, _, self.col3 = st.columns(self.columns)
@@ -1134,13 +1137,13 @@ class TDashboard:
             with col1:
                 low = st.number_input(
                     f"{param} (min)", 
-                    value=float(default_val) * 0.8, 
+                    value=float(default_val) * 0.5, 
                     key=f"{param}_low"
                 )
             with col2:
                 high = st.number_input(
                     f"{param} (max)", 
-                    value=float(default_val) * 1.2, 
+                    value=float(default_val) * 2, 
                     key=f"{param}_high"
                 )
             param_ranges[param] = (low, high)
