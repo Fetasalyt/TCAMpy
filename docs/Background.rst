@@ -39,3 +39,9 @@ Mutations
 With every proliferation the daughter cell can aquire a new mutation (+1 or -1 to their 'mutation state', up to +3 or -3), and inherit the mother cell's mutations. The mutation state influences proliferation rate, apoptosis chance, immune resistance and current proliferation potential.
 A positive mutation value means mutations that help the cancer cell survive, while a negative one is bad for the tumor. For example, a cancer cell with a mutation state of +2 will proliferate with a higher then normal chance, and is less likely to die. At every proliferation it's daughter cell
 can either stay a +2 or gain another positive mutation to +3 or a negative one to +1. The chance for this is the 'M' parameter of the model. A mutation map, containg what mutations happened where, is shown on a 'Mutation history' heatmap. The immune response can be disabled by setting the 'M' parameter to 0.
+
+Machine Learning
+----------------
+
+Basic Machine Learning features are implemented in the module with sklearn. These include generating a dataset with randomized parameter values (with ranges set by the user), training a model and calculating the most important parameters for tumor growth,
+as well as predicting final tumor size or confluence based on a new set of parameters. Additional features and improvements are also planned for later.
