@@ -98,4 +98,26 @@ You will need to run the file containing this cod in your command line with stre
 A dashboard will be created, where you have full control over the model. You can set the parameters using the sliders, run the model, view plots as well as statistics.
 This dashboard can be used online with Streamlit Community Cloud, without any coding: https://tcampy.streamlit.app/
 
+To use ML features provided by the module write the following code:
+
+.. code-block:: python
+
+    ml = tcam.TML(M)
+    
+    # Select parameters to randomize and ranges
+    randomize = {"PA": (1, 15), "M": (0, 10), "I": (0, 10)}
+    
+    # Generate dataset with randomized parameters
+    df = ml.generate_dataset(
+        n=50,
+        random_params=randomize,
+        output_file="tumor_dataset.csv"
+    )
+    
+    # Train a model
+    model, metrics = ml.train_predictor("tumor_dataset.csv", "Tumor size")
+    
+    new_params = [500, 50, 10, 1, 24, 1/24, 15, 4, 4, 10]
+    print ("Predicted Attribute: ", ml.predict_new(new_params))
+
 You also have access to commands to save results (the field or the statistics) to an excel file, or create your own run function/loop by individually accessing cycles and cells. For details on those functions check the API Documentation.
