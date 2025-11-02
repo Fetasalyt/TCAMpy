@@ -13,6 +13,7 @@ from sklearn.metrics import r2_score, mean_absolute_error
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
 from streamlit_javascript import st_javascript
+from scipy.ndimage import gaussian_filter
 from scipy.stats import skew, kurtosis
 from functools import wraps
 from tqdm import tqdm
@@ -49,6 +50,7 @@ class TModel:
         self.stc_number = []
         self.rtc_number = []
         self.wbc_number = []
+        self.it_ratio   = []
         self.immune = []
         self.mutate = []
         self.mutmap = []
@@ -60,11 +62,12 @@ class TModel:
         self.runs  = []
         
         # Chances
-        self.PP = int(CCT*Dt/24*100)
+        self.PP = CCT*Dt/24*100
         self.PM = 100*mu/24
         self.PA = PA
         self.PS = PS
     
+    # ---------------------------------------------------------------------
     def init_state(self):
         """
         Creates the initial state with one STC in the middle.
@@ -78,6 +81,7 @@ class TModel:
         
         self.mod_cell(self.side//2, self.side//2, self.pmax+1)
         
+    # ---------------------------------------------------------------------
     def find_tumor_cells(self):
         """
         Saves the coordinates of tumor cells to self.tumor_cells.
@@ -91,6 +95,7 @@ class TModel:
         np.random.shuffle(coords)
         self.tumor_cells = coords
 
+    # ---------------------------------------------------------------------
     def count_tumor_cells(self):
         """
         Saves the number of STCs/RTCs to self.stc_number/self.rtc_number.
@@ -104,6 +109,7 @@ class TModel:
         self.stc_number.append(stc_count)
         self.rtc_number.append(rtc_count)
 
+    # ---------------------------------------------------------------------
     def get_neighbours(self, x, y, neighbour_type):
         """
         Returns the neighboring coordinates of a given cell in a 2D NumPy matrix.
@@ -149,6 +155,7 @@ class TModel:
                         neighbours.append(n)
         return neighbours   
     
+    # ---------------------------------------------------------------------
     def cell_step(self, x, y, step_type):
         """
         The function that makes a single cell do one of the following actions:
@@ -202,6 +209,7 @@ class TModel:
             self.mutmap[nx, ny] = self.mutate[x, y]
             self.mutate[x,   y] = 0
         
+    # ---------------------------------------------------------------------
     def tumor_action(self):
         """
         This is the function that decides what action a cell will do.
@@ -219,7 +227,7 @@ class TModel:
                 probs[0] = 0
             if not self.get_neighbours(x, y, 1):
                 probs[1:3] = 0
-            probs = self.mutate_chances(probs, x, y)
+            probs = self.mutate_probs(probs, x, y)
             probs /= probs.sum()
         
             # Choose action
@@ -231,16 +239,17 @@ class TModel:
                 
             elif choice == 1:  # proliferation
                 if is_stc and np.random.rand() < self.PS/100:
-                    self.cell_step(x, y, 1)   # symmetric division
+                    self.cell_step(x, y, 1)   # STC-STC division
                 elif is_stc:
-                    self.cell_step(x, y, 2)   # asymmetric division
+                    self.cell_step(x, y, 2)   # STC-RTC division
                 else:
-                    self.cell_step(x, y, 3)   # RTC division
+                    self.cell_step(x, y, 3)   # RTC-RTC division
                     
             elif choice == 2:  # migration
                 self.cell_step(x, y, 4)
 
-    def mutate_chances(self, chances, x, y):
+    # ---------------------------------------------------------------------
+    def mutate_probs(self, chances, x, y):
         """
         The function that changes the cell action chances
         based on the current mutation status of the cell.
@@ -265,58 +274,83 @@ class TModel:
             chances[3] = 100 - chances.sum()
         return chances
 
+    # ---------------------------------------------------------------------
     def immune_response(self):
         """
         The function that simulates immune cells.
         Spawns, moves and activates immune cells.
         """
 
-        # Extract immune spawnpoints (inner edge)
-        top    = [[1, j] for j in range(1, self.side-1)]
-        bottom = [[self.side-2, j] for j in range(1, self.side-1)]
-        left   = [[i, 1] for i in range(1, self.side-1)]
-        right  = [[i, self.side-2] for i in range(1, self.side-1)]
-        self.spawnpoints = np.array(top + bottom + left + right)
-
-        # Spawn immune cells
         self.find_tumor_cells()
+        tumor_size = len(self.tumor_cells)
+        tumor_x = [x for x, _ in self.tumor_cells]
+        tumor_y = [y for _, y in self.tumor_cells]
+    
+        # Find spawnpoints (a "frame" around tumor)
+        frame  = []
+        offset = 10
+        left   = max(1, min(tumor_x) - offset)
+        right  = min(self.side - 2, max(tumor_x) + offset)
+        top    = max(1, min(tumor_y) - offset)
+        bottom = min(self.side - 2, max(tumor_y) + offset)
+    
+        for j in range(left, right + 1):
+            frame.append([top, j])
+            frame.append([bottom, j])
+        for i in range(top, bottom + 1):
+            frame.append([i, left])
+            frame.append([i, right])
+        self.spawnpoints = np.array(frame)
+
+        # Saturating spawn (sigmoid-like), delayed onset
+        spawn = self.I * (tumor_size / (tumor_size + self.I * 500))
         for cell in self.spawnpoints:
-            size = len(self.tumor_cells)
-            
-            # Saturating spawn (MM) based on tumor size
-            chance = self.I/300 * (size) / (self.I*20 + size)
-            if np.random.rand() < chance:
-                self.immune[cell[0]][cell[1]] = self.I*15
+            x, y = cell
+            if np.random.rand() < spawn / 50:
+                if self.immune[x, y] == 0 and self.field[x, y] == 0:
+                    self.immune[x, y] = np.random.randint(self.I*3, self.I*6)
+                  
+        # Chemoattractant map for tumor density
+        self.chemo = (self.field > 0).astype(float)
+        self.chemo = gaussian_filter(self.chemo, sigma=5)
                 
-        # Save immune cells
+        # Immune action
         coords = np.nonzero(self.immune)
         self.immune_cells = np.transpose(coords)
         
-        # Immune action
-        for cell in self.immune_cells:
-            x, y = cell
+        for (x, y) in self.immune_cells:
             
-            # If next to tumor cell kill it with calc. prob.
-            tumor_nb = self.get_neighbours(cell[0], cell[1], 2)
-            if len(tumor_nb) > 0:
-                tx, ty = tumor_nb[random.randint(1,len(tumor_nb)) - 1]
-                # Kill chance based on I and mutation status
-                if self.I*10 - self.mutate[tx, ty]*10 >= random.randint(1, 100):
+            # Kill prob on contact: (0.15 - 0.3, if I=5)
+            tumor_nb = self.get_neighbours(x, y, 2)
+            if tumor_nb:
+                tx, ty = random.choice(tumor_nb)
+                kill = (0.05*self.I) * np.exp(-0.25*self.mutate[tx,ty])
+                kill = min(kill, 0.3)
+                
+                if np.random.rand() < kill:
                     self.field[tx,  ty] = 0
                     self.mutate[tx, ty] = 0
             
-            # Move to a neighbouring cell
-            free_nb = self.get_neighbours(cell[0], cell[1], 1)
-            if len(free_nb) > 0:
-                tx, ty = free_nb[random.randint(1,len(free_nb)) - 1]
+            # Biased movement towards tumor density
+            free_nb = self.get_neighbours(x, y, 1)
+            if free_nb:
+                t_dens = [self.chemo[i, j] for (i, j) in free_nb]
+                if sum(t_dens) > 0:
+                    weights = np.array(t_dens) / sum(t_dens)
+                    tx, ty = free_nb[np.random.choice(len(free_nb), p=weights)]
+                else:
+                    tx, ty = random.choice(free_nb)
                 self.immune[tx, ty] = self.immune[x, y] - 1
-                self.immune[x, y]   = 0
+                self.immune[x, y] = 0
             else:
-                self.immune[x, y]   = self.immune[x, y] - 1
+                self.immune[x, y] -= 1
 
         # Save number of immune cells
-        self.wbc_number.append(len(self.immune_cells))
+        immune_size = len(self.immune_cells)
+        self.wbc_number.append(immune_size)
+        self.it_ratio.append(immune_size / tumor_size)
 
+    # ---------------------------------------------------------------------
     def animate(self, mode):
         """
         Creates and returns animation of the growth.
@@ -345,6 +379,7 @@ class TModel:
             # Display the animation
             return animation.ArtistAnimation(self.fig, self.images, interval=50, blit=True)
 
+    # ---------------------------------------------------------------------
     def save_field_to_excel(self, file_name):
         """
         Saves the current state of self.field to an excel file.
@@ -355,6 +390,7 @@ class TModel:
 
         pd.DataFrame(self.field).to_excel(file_name, index=False)
 
+    # ---------------------------------------------------------------------
     def mod_cell(self, x, y, value):
         """
         Modifies cell value. (Create initial state before this!)
@@ -366,6 +402,7 @@ class TModel:
         
         self.field[y][x] = value
 
+    # ---------------------------------------------------------------------
     def get_prolif_potentials(self):
         """
         Returns a dictionary of proliferation potential numbers.
@@ -385,6 +422,7 @@ class TModel:
             
         return prolif_potents
 
+    # ---------------------------------------------------------------------
     def get_statistics(self):
         """
         Returns various statistical properties of the model.
@@ -410,6 +448,7 @@ class TModel:
                 "Final WBC":  self.wbc_number[self.cycles-1],
                 "Tumor Size": nonzero_field.size,
                 "Confluence": nonzero_field.size/self.field.size*100,
+                "Mean I/T"  : sum(self.it_ratio)/len(self.it_ratio)
             }
         
             # Proliferation potentials
@@ -426,6 +465,7 @@ class TModel:
         else: stats = {"Status": "Extinct"}
         return stats
     
+    # ---------------------------------------------------------------------
     def save_statistics(self, file_name):
         """
         Saves various statistical properties of the model to an excel file.
@@ -438,6 +478,7 @@ class TModel:
         df = pd.DataFrame([stats_dict])
         df.to_excel(file_name, index=False)
 
+    # ---------------------------------------------------------------------
     def measure_runtime(func):
         # Decorator to measure completion time
         @wraps(func)
@@ -450,6 +491,7 @@ class TModel:
             return result
         return wrapper
 
+    # ---------------------------------------------------------------------
     @measure_runtime
     def run_model(self, plot, animate, stats):
         """
@@ -478,7 +520,7 @@ class TModel:
         if animate: self.animate(1)
 
         # Growth loop
-        for c in range(self.cycles):
+        for c in tqdm(range(self.cycles), desc="Running simulation..."):
             self.tumor_action()
             self.immune_response()
             self.find_tumor_cells()
@@ -496,6 +538,7 @@ class TModel:
             base_cols = self.separate_columns(df)[0]
             print(df[base_cols])
         
+    # ---------------------------------------------------------------------
     @measure_runtime
     def run_multimodel(self, count, init_field):
         """
@@ -522,6 +565,7 @@ class TModel:
         
         return all_stats
 
+    # ---------------------------------------------------------------------
     def store_model(self):
         """
         Stores the results of the previous model executions.
@@ -544,6 +588,7 @@ class TModel:
         # Stores data for statistics
         self.stats.append(self.get_statistics())
         
+    # ---------------------------------------------------------------------
     def separate_columns(self, data):
         """
         Separates the statistics DataFrame columns into logical groups:
@@ -575,6 +620,7 @@ class TModel:
         
         return base, stc, rtc, wbc, pp
 
+    # ---------------------------------------------------------------------
     def plot_run(self, run):
         """
         Creates growth and cell number plots, proliferation potential histograms.
@@ -621,6 +667,7 @@ class TModel:
             ax.set_xlabel(labs_x[i])
             ax.set_ylabel(labs_y[i])
 
+    # ---------------------------------------------------------------------
     def plot_averages(self, data):
         """
         The function that plots the averages of multiple model results.
@@ -682,6 +729,7 @@ class TDashboard:
     def __init__(self, model):
         self.model = model
 
+    # ---------------------------------------------------------------------
     def run_dashboard(self):
         """
         The function that creates the entire streamlit dashboard for the model.
@@ -713,6 +761,7 @@ class TDashboard:
             with col2:
                 self._train_and_predict()
 
+    # ---------------------------------------------------------------------
     def print_title(self, title):
         """
         The function that prints text as a title on the dashboard.
@@ -726,6 +775,7 @@ class TDashboard:
             unsafe_allow_html=True
         )
     
+    # ---------------------------------------------------------------------
     def get_plot_height(self, col, scaler):
         """
         The function that calculates the height of plots
@@ -740,6 +790,7 @@ class TDashboard:
         col_width_px = screen_width * (self.columns[col-1] / sum(self.columns))
         return int(col_width_px * scaler)
 
+    # ---------------------------------------------------------------------
     def _initialize(self):
         """
         The function that sets the parameters and initializes the model.
@@ -789,6 +840,7 @@ class TDashboard:
             st.session_state.initialized = True
             st.session_state.init_config_hash = config_hash
 
+    # ---------------------------------------------------------------------
     def _modify_cell(self):
         """
         The function for initial state modification logic.
@@ -815,6 +867,7 @@ class TDashboard:
         
         st.altair_chart(heatmap, use_container_width=True)
 
+    # ---------------------------------------------------------------------
     def _execute_model(self):
         """
         The function for model running logic.
@@ -825,16 +878,18 @@ class TDashboard:
         rep = st.number_input("How many simulations?", 1)
         
         if st.button("Run Model"):
-            for i in range(rep):
-                self.model.field  = st.session_state.field.copy()
-                self.model.immune = st.session_state.immune.copy()
-                self.model.mutate = st.session_state.mutate.copy()
-                self.model.mutmap = st.session_state.mutmap.copy()
-                self.model.run_model(plot = False, animate=False, stats=False)
+            with st.spinner("Running simulations..."):
+                for i in range(rep):
+                    self.model.field  = st.session_state.field.copy()
+                    self.model.immune = st.session_state.immune.copy()
+                    self.model.mutate = st.session_state.mutate.copy()
+                    self.model.mutmap = st.session_state.mutmap.copy()
+                    self.model.run_model(plot = False, animate=False, stats=False)
+    
+                st.session_state.model_runs = self.model.runs
+                st.session_state.model_stats = self.model.stats
 
-            st.session_state.model_runs = self.model.runs
-            st.session_state.model_stats = self.model.stats
-
+    # ---------------------------------------------------------------------
     def _visualize_run(self, title, run):
         """
         The function for the result visualization logic.
@@ -883,6 +938,7 @@ class TDashboard:
             st.altair_chart(bar_chart, use_container_width=True)
             st.altair_chart(line_chart, use_container_width=True)
 
+    # ---------------------------------------------------------------------
     def _create_heatmap(
             self, h, title, cmap, ctitle,
             vmin, vmax, heatmap, scatter=None
@@ -942,6 +998,7 @@ class TDashboard:
     
         return heat_chart
     
+    # ---------------------------------------------------------------------
     def _create_line_chart(
             self, h, stc, rtc, wbc, stc_l=None, stc_u=None,
             rtc_l=None, rtc_u=None, wbc_l=None, wbc_u=None
@@ -988,6 +1045,7 @@ class TDashboard:
         chart = (area + line) if area else line
         return chart.properties(title="Cell Counts Over Time", height=h)
     
+    # ---------------------------------------------------------------------
     def _create_bar_chart(self, h, pp, std=None):
         """
         Creates an Altair bar chart for proliferation potential distribution.
@@ -1021,6 +1079,7 @@ class TDashboard:
     
         return chart.properties(title="Proliferation Potential Distribution", height=h)
 
+    # ---------------------------------------------------------------------
     def _show_statistics(self):
         """
         The function for the statistics printing logic.
@@ -1029,13 +1088,9 @@ class TDashboard:
         if not self.model.stats: return
         
         self.print_title("All Simulations")
-
         plots_height = self.get_plot_height(3, 0.4)
-
         df = pd.DataFrame(self.model.stats)
-        
         base_cols, stc_cols, rtc_cols, wbc_cols, pp_cols = self.model.separate_columns(df)
-        
         df.index = df.index + 1
 
         # Display Statistics
@@ -1071,6 +1126,7 @@ class TDashboard:
         with col2:
             st.altair_chart(bar_chart, use_container_width=True)
 
+    # ---------------------------------------------------------------------
     def _reset_save_stats(self):
         """
         The function for the reset/download statistics logic.
@@ -1117,6 +1173,7 @@ class TDashboard:
             if visualize:
                 self._visualize_run("Selected Simulation", selected_run)
 
+    # ---------------------------------------------------------------------
     def _simdata_generator(self):
         """
         The Machine Learning tab for dataset generation and download.
@@ -1166,6 +1223,7 @@ class TDashboard:
                 use_container_width=True
             )
 
+    # ---------------------------------------------------------------------
     def _train_and_predict(self):
         """
         Streamlit UI for model training and prediction using the TML class.
@@ -1199,8 +1257,8 @@ class TDashboard:
                         n_estimators=n_estimators
                     )
     
-                st.success(f"Model trained successfully!")
-                st.write(f"**R²:** {metrics['R2']:.3f}")
+                st.success("Model trained successfully!")
+                st.write(f"**R^2:** {metrics['R2']:.3f}")
                 st.write(f"**MAE:** {metrics['MAE']:.3f}")
     
                 # Store trained model for later prediction
@@ -1228,7 +1286,7 @@ class TDashboard:
             if st.button("🔮 Predict New", use_container_width=True):
                 try:
                     prediction = trained_tml.predict_new(new_params)
-                    st.success(f"🎯 Predicted {target}: **{prediction:.3f}**")
+                    st.success(f"Predicted {target}: **{prediction:.3f}**")
                 except Exception as e:
                     st.error(f"Prediction failed: {e}")
         else:
@@ -1261,6 +1319,7 @@ class TML:
             "M":      self.model.M,
         }
 
+    # ---------------------------------------------------------------------
     def generate_dataset(
             self, n=50, random_params=None,
             output_file="tumor_dataset.csv"
@@ -1308,6 +1367,7 @@ class TML:
             print(f"Dataset saved to {output_file} ({len(df)} runs)")
             return df
             
+    # ---------------------------------------------------------------------
     def train_predictor(
             self, file, target, test_size=0.2, 
             random_state=42, n_estimators=200
@@ -1367,6 +1427,7 @@ class TML:
     
         return model, metrics
     
+    # ---------------------------------------------------------------------
     def predict_new(self, params):
         """
         Predicts an attribute value for a set of
