@@ -4,3 +4,13 @@ enum-tools==0.13.0
 sphinx-rtd-theme==3.0.2
 sphinx-autodoc-typehints
 myst-parser
+altair==5.5.0
+matplotlib==3.10.0
+numpy==2.2.2
+pandas==2.2.3
+scipy==1.15.1
+streamlit==1.43.2
+streamlit_javascript==0.1.5
+scikit_learn==1.7.0
+openpyxl
+tqdm
