@@ -27,3 +27,12 @@ The 'TDashboard' class for dashboard creation
    :undoc-members:
    :private-members:
    :show-inheritance:
+
+The 'TML' class for Machine Learning tasks
+------------------------------------------
+
+.. autoclass:: TCAMpy.TML
+   :members:
+   :undoc-members:
+   :private-members:
+   :show-inheritance:
