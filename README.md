@@ -7,7 +7,7 @@ The theoretical background for this model is based on the work of Carlos A Valen
 Valentim CA, Rabi JA, David SA. Cellular-automaton model for tumor growth dynamics: Virtualization of different scenarios. Comput Biol Med. 2023 Feb;153:106481. doi: 10.1016/j.compbiomed.2022.106481. Epub 2022 Dec 28. PMID: 36587567.
 (url: https://pubmed.ncbi.nlm.nih.gov/36587567/)
 
-This documentation provides detaild description on how to use the modul, with example codes and links to example files.
+This documentation provides detaild description on how to use the module, with example codes and links to example files. Detailed description is available in the uploaded paper: [to be uploaded]
 
 ## Example Results
 
