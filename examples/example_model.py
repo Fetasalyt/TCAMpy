@@ -7,7 +7,4 @@ M.run_model(plot = True, animate = True, stats = True)
 
 # -- Run multiple models --
 
-# stats = M.run_multimodel(3, M.field)
-
-# print(stats)
-# M.plot_averages(stats)
+# stats = M.run_multimodel(3, M.field, plot = True, stats = True)
