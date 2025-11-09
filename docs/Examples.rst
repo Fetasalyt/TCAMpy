@@ -16,17 +16,17 @@ Create a model and execute it one time. Plot the results, animate and show the s
 Multiple executions
 -------------------
 
-Run the model multiple (in this case 5) times. Save the results to 'stats' and plot the averages.
+Run the model multiple (in this case 5) times and plot the average results.
 
 .. code-block:: python
 
     import TCAMpy as tcam
     import matplotlib.pyplot as plt
 
-    stats = M.run_multimodel(5, M.field)
-    M.plot_averages(stats)
+    M = tcam.TModel(500, 50, 10, 1, 24, 1/24, 15, 4, 5, 10)
+    stats = M.run_multimodel(5, M.field, plot = True, stats = True)
 
-    # Check visualization for every execution (optional)
+    # Check visualization for every execution
     for i in range(len(M.runs)):
         M.plot_run(i+1)
 
