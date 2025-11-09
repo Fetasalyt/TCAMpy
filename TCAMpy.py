@@ -275,25 +275,31 @@ class TModel:
         return chances
 
     # ---------------------------------------------------------------------
-    def immune_response(self):
+    def immune_response(self, offset = 20, alpha = 0.002, max_speed = 3):
         """
         The function that simulates immune cells.
         Spawns, moves and activates immune cells.
+        
+        Parameters:
+            offset (int): distance of spawnpoints from the tumor
+            alpha (float): controls strength of immune exhaustion
+            max_speed (int): maximum steps of immune cells/cycle
         """
 
+        # Current tumor cell locations
         self.find_tumor_cells()
         tumor_size = len(self.tumor_cells)
+        if tumor_size == 0: return
         tumor_x = [x for x, _ in self.tumor_cells]
         tumor_y = [y for _, y in self.tumor_cells]
     
         # Find spawnpoints (a "frame" around tumor)
-        frame  = []
-        offset = 10
+        frame = []
         left   = max(1, min(tumor_x) - offset)
         right  = min(self.side - 2, max(tumor_x) + offset)
         top    = max(1, min(tumor_y) - offset)
         bottom = min(self.side - 2, max(tumor_y) + offset)
-    
+        
         for j in range(left, right + 1):
             frame.append([top, j])
             frame.append([bottom, j])
@@ -301,9 +307,13 @@ class TModel:
             frame.append([i, left])
             frame.append([i, right])
         self.spawnpoints = np.array(frame)
+        
+        # Immune exhaustion = time-dependent decline
+        IE = 1.0 / (1.0 + alpha * self.cycles)
+        IE = max(IE, 0.2)
 
         # Saturating spawn (sigmoid-like), delayed onset
-        spawn = self.I * (tumor_size / (tumor_size + self.I * 500))
+        spawn = self.I * (tumor_size / (tumor_size + self.I * 100)) * IE
         for cell in self.spawnpoints:
             x, y = cell
             if np.random.rand() < spawn / 50:
@@ -313,37 +323,51 @@ class TModel:
         # Chemoattractant map for tumor density
         self.chemo = (self.field > 0).astype(float)
         self.chemo = gaussian_filter(self.chemo, sigma=5)
+        self.chemo = self.chemo / np.max(self.chemo)
                 
         # Immune action
         coords = np.nonzero(self.immune)
         self.immune_cells = np.transpose(coords)
         
+        # Temporary immune grid
+        new_immune = np.zeros_like(self.immune)
+
         for (x, y) in self.immune_cells:
-            
-            # Kill prob on contact: (0.15 - 0.3, if I=5)
+            strength = self.immune[x, y]
+            if strength <= 0:
+                continue
+        
+            # Kill prob on contact: (0.15 - 0.3, if I=5, IE = 0)
             tumor_nb = self.get_neighbours(x, y, 2)
             if tumor_nb:
                 tx, ty = random.choice(tumor_nb)
-                kill = (0.05*self.I) * np.exp(-0.25*self.mutate[tx,ty])
+                kill = (0.05*self.I) * np.exp(-0.25*self.mutate[tx,ty]) * IE
                 kill = min(kill, 0.3)
-                
                 if np.random.rand() < kill:
-                    self.field[tx,  ty] = 0
+                    self.field[tx, ty] = 0
                     self.mutate[tx, ty] = 0
-            
-            # Biased movement towards tumor density
-            free_nb = self.get_neighbours(x, y, 1)
-            if free_nb:
+        
+            # # Multiple moves/cycle as immune cells are faster
+            moves = int(1 + max_speed * (1 - self.chemo[x, y]))
+            for _ in range(moves):
+                free_nb = self.get_neighbours(x, y, 1)
+                if not free_nb:
+                    strength -= 1
+                    break
+        
+                # Biased movement towards tumor density
                 t_dens = [self.chemo[i, j] for (i, j) in free_nb]
                 if sum(t_dens) > 0:
                     weights = np.array(t_dens) / sum(t_dens)
                     tx, ty = free_nb[np.random.choice(len(free_nb), p=weights)]
                 else:
                     tx, ty = random.choice(free_nb)
-                self.immune[tx, ty] = self.immune[x, y] - 1
-                self.immune[x, y] = 0
-            else:
-                self.immune[x, y] -= 1
+                x, y = tx, ty
+                strength -= 1
+                
+            if strength > 0:
+                new_immune[x, y] = strength
+        self.immune = new_immune
 
         # Save number of immune cells
         immune_size = len(self.immune_cells)
@@ -540,13 +564,15 @@ class TModel:
         
     # ---------------------------------------------------------------------
     @measure_runtime
-    def run_multimodel(self, count, init_field):
+    def run_multimodel(self, count, init_field, plot, stats):
         """
         Runs the model multiple times and returns a DataFrame of statistics.
     
         Parameters:
-            count (int): number of times to run the model
-            init_field (np.array): initial state of the field for each run
+            count (int): number of times to run the simulation
+            init_field (np.array): custom initial state of field/run
+            plot (bool): set to true to display the plots of the model
+            stats (bool): set to true to print statistics of the model
     
         Returns:
             pd.DataFrame: collected statistics from each run
@@ -562,6 +588,13 @@ class TModel:
             self.run_model(plot = False, animate = False, stats = False)
             stats.append(self.get_statistics())
         all_stats = pd.DataFrame(stats)
+        
+        if plot:
+            self.plot_averages(all_stats)
+        if stats:
+            df = pd.DataFrame(self.stats)
+            base_cols = self.separate_columns(df)[0]
+            print(df[base_cols])
         
         return all_stats
 
