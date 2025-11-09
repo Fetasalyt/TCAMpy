@@ -10,7 +10,8 @@ Comput Biol Med. 2023 Feb;153:106481. doi: 10.1016/j.compbiomed.2022.106481. Epu
 
 This is a 2D cellular automata model; the area is a square grid, with each cell being able to have discrate values ranging from 0 to a 'pmax'+1 (see below). If a square
 is 0, it is empty, if not 0, a tumor cell exists there with a proliferation potential of the square's value. All probabilites mentioned below, the maximum proliferation potential value,
-model duration and area size is a parameter of the model, which can be set by the user. Here is a quick explanation of how the model works.
+model duration and area size is a parameter of the model, which can be set by the user. Here is a quick explanation of how the model works. Please note that the exact parameter values, equations, ranges and methods are
+described in the paper: [to be uploaded] (and can also be seen in the source code).
 
 Tumor cell types
 ----------------
@@ -31,7 +32,7 @@ a surviving cell.
 Immune response
 ---------------
 
-In each cycle, after the tumor growth, immune cells may also appear and act. They spawn randomly on the inner edge of the field and every time step they move to a free neighbouring spot. If they get in contact with a cancer cell (they move next to one), they might kill it. After a certain amount of life, the immune cells die. The spawn rate, kill chance and lifespan is influenced by a single ‘immune strength (I)’ parameter, and the spawn rate also increases with the size of the tumor (but has a maximum value based on I). Immune cells are shown on the same heatmap as the tumor cells. The immune response can be disabled by setting the 'I' parameter to 0.
+In each cycle, after the tumor growth, immune cells may also appear and act. They spawn from a certain distance away from the tumor on the field (on a "frame" around the tumor) and every time step they move to a free neighbouring spot towards tumor density. If they get in contact with a cancer cell (they move next to one), they might kill it with a probability based on an immune strength (I) parameter, mutation state of the target and immune exhaustion (IE), which is a time-dependent decline of the immune population. The spawn rate is influenced by I, IE and tumor size as well. The movement of the immune cells is faster then the movement of the tumor cells, so they can migrate multiple time in each cycle (increasing based on their distance from the tumor). Immune cells are shown on the same heatmap as the tumor cells. After a certain amount of life, the immune cells die. The immune response can be disabled by setting the 'I' parameter to 0.
 
 Mutations
 ---------
