@@ -57,14 +57,13 @@ a complete example of a custom initial state, where the diagonal is filled with 
 You can run multiple models using the 'run_multimodel()' function. You must specifiy how many models you'd like to run, and what initial state you'd
 like to use for them as a numpy array. (If you want to stick with the default initial state just say 'M.field' without modifying it or give an empty numpy array.)
 You can change 'M.field' or give a completely different numpy array as a parameter, if you want a different initial state. This function returns the results
-as a pandas dataframe. Plot the averages with standard deviations with the 'plot_averages()' function.
+as a pandas dataframe. Plot the averages with standard deviations by setting 'plot' to True and print the dataframe by setting 'stats' to True.
 
 .. code-block:: python
 
-    stats = M.run_multimodel(5, M.field)
-    M.plot_averages(stats)
+    stats = M.run_multimodel(5, M.field, plot = True, stats = True)
 
-The 'plot_averages()' function only considers average and SD values. However, you can plot every individual model execution (after running 'run_model()' or 'run_multimodel()')
+Y can plot every individual model execution (after running 'run_model()' or 'run_multimodel()')
 even if plotting was not enabled, because the data necessary for plotting is saved during every execution to M.runs.
 
 .. code-block:: python
