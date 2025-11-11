@@ -31,7 +31,7 @@ class TModel:
         Dt (float): time step of the model given in days
         PS (int): STC-STC division chance (in percent)
         mu (int): migration capacity of cancer cells
-        I (int): strength of the immune cells (1-10)
+        I (int): strength of the immune cells (1-5)
         M (int): tumor mutation chance (in percent)
     """
     
@@ -50,7 +50,6 @@ class TModel:
         self.stc_number = []
         self.rtc_number = []
         self.wbc_number = []
-        self.it_ratio   = []
         self.immune = []
         self.mutate = []
         self.mutmap = []
@@ -66,6 +65,10 @@ class TModel:
         self.PM = 100*mu/24
         self.PA = PA
         self.PS = PS
+        
+        # Immune Data
+        self.it_ratio = []
+        self.kill_day = []
     
     # ---------------------------------------------------------------------
     def init_state(self):
@@ -116,7 +119,7 @@ class TModel:
 
         Parameters:
             x, y (int): representing the coordinates of the cell
-            neighbour_type (int): type of neighboring cells (1-4)
+            neighbour_type (int): type of neighboring cells (1-5)
             
         Returns:
             list: a list with the coords of the neighbouring cells
@@ -149,10 +152,15 @@ class TModel:
                     # Return list of immune cells
                     if self.immune[n[0],n[1]] != 0:
                         neighbours.append(n)
-                case 2:
+                case 4:
                     # Return list of any cells
                     if (self.field[n[0],n[1]] != 0 or self.immune[n[0],n[1]] != 0):
                         neighbours.append(n)
+                case 5:
+                    # # Return list of free/immune cells
+                    if self.immune[n[0],n[1]] == 0:
+                        neighbours.append(n)
+                    
         return neighbours   
     
     # ---------------------------------------------------------------------
@@ -275,15 +283,16 @@ class TModel:
         return chances
 
     # ---------------------------------------------------------------------
-    def immune_response(self, offset = 20, alpha = 0.002, max_speed = 3):
+    def immune_response(self, offset = 10, alpha = 0.002, it_targ = 0.1, infil = 0.3):
         """
         The function that simulates immune cells.
         Spawns, moves and activates immune cells.
         
         Parameters:
-            offset (int): distance of spawnpoints from the tumor
-            alpha (float): controls strength of immune exhaustion
-            max_speed (int): maximum steps of immune cells/cycle
+            offset (int): distance of spawnpoints ("frame") from the tumor
+            alpha (float): controls strength (slope) of immune exhaustion
+            it_targ (float): desired mean immune/tumor ratio during simulation
+            infil (float): "searching/infiltrating" threshold for wbcs (0-1)
         """
 
         # Current tumor cell locations
@@ -312,13 +321,19 @@ class TModel:
         IE = 1.0 / (1.0 + alpha * self.cycles)
         IE = max(IE, 0.2)
 
-        # Saturating spawn (sigmoid-like), delayed onset
+        # Saturating spawn (sigmoid-like), delayed onse
         spawn = self.I * (tumor_size / (tumor_size + self.I * 100)) * IE
+        
+        coords = np.nonzero(self.immune)
+        it_ratio = len(np.transpose(coords)) / tumor_size
         for cell in self.spawnpoints:
             x, y = cell
             if np.random.rand() < spawn / 50:
-                if self.immune[x, y] == 0 and self.field[x, y] == 0:
-                    self.immune[x, y] = np.random.randint(self.I*3, self.I*6)
+                if self.immune[x, y] == 0 and self.field[x, y] == 0 and it_ratio <= it_targ:
+                    # Immune cell lifespan: I-1 weeks to I+1 weeks
+                    min_life = min(24, (self.I-1)*168)
+                    max_life = (self.I+1)*168
+                    self.immune[x, y] = np.random.randint(min_life, max_life)
                   
         # Chemoattractant map for tumor density
         self.chemo = (self.field > 0).astype(float)
@@ -327,6 +342,7 @@ class TModel:
                 
         # Immune action
         coords = np.nonzero(self.immune)
+        kills_per_hour = 0
         self.immune_cells = np.transpose(coords)
         
         # Temporary immune grid
@@ -346,16 +362,17 @@ class TModel:
                 if np.random.rand() < kill:
                     self.field[tx, ty] = 0
                     self.mutate[tx, ty] = 0
-        
+                    kills_per_hour += 1
+
             # # Multiple moves/cycle as immune cells are faster
-            moves = int(1 + max_speed * (1 - self.chemo[x, y]))
+            moves = int(1 + self.I * (1 - self.chemo[x, y]))
             for _ in range(moves):
                 free_nb = self.get_neighbours(x, y, 1)
                 if not free_nb:
                     strength -= 1
                     break
         
-                # Biased movement towards tumor density
+                # Biased movement towards tumor density (chemotaxis)
                 t_dens = [self.chemo[i, j] for (i, j) in free_nb]
                 if sum(t_dens) > 0:
                     weights = np.array(t_dens) / sum(t_dens)
@@ -373,6 +390,11 @@ class TModel:
         immune_size = len(self.immune_cells)
         self.wbc_number.append(immune_size)
         self.it_ratio.append(immune_size / tumor_size)
+        
+        # Infiltrating immune cells
+        wbc_infil = sum(1 for (x,y) in self.immune_cells if self.chemo[x,y] >= infil)
+        if immune_size > 0:
+            self.kill_day.append(kills_per_hour / max(1, wbc_infil) * 24)
 
     # ---------------------------------------------------------------------
     def animate(self, mode):
@@ -472,8 +494,13 @@ class TModel:
                 "Final WBC":  self.wbc_number[self.cycles-1],
                 "Tumor Size": nonzero_field.size,
                 "Confluence": nonzero_field.size/self.field.size*100,
-                "Mean I/T"  : sum(self.it_ratio)/len(self.it_ratio)
             }
+            
+            if self.I > 0:
+                stats.update({
+                    "Mean I/T"  : sum(self.it_ratio)/len(self.it_ratio),
+                    "Mean k/d"  : sum(self.kill_day)/len(self.kill_day)
+                })
         
             # Proliferation potentials
             stats.update(self.get_prolif_potentials())
