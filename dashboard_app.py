@@ -7,7 +7,7 @@ def main():
     model = tcam.TModel(
         500,      # cycles
         50,       # side
-        10,       # pmax
+        15,       # pmax
         1,        # PA
         24,       # CCT
         1/24,     # Dt
