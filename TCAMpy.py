@@ -298,7 +298,16 @@ class TModel:
         # Current tumor cell locations
         self.find_tumor_cells()
         tumor_size = len(self.tumor_cells)
-        if tumor_size == 0: return
+        if tumor_size == 0:
+            # Count existing immune cells
+            coords = np.argwhere(self.immune > 0)
+            self.immune_cells = coords
+            immune_size = len(coords)
+            for x, y in coords:
+                self.immune[x, y] -= 1
+            self.wbc_number.append(immune_size)
+            return
+
         tumor_x = [x for x, _ in self.tumor_cells]
         tumor_y = [y for _, y in self.tumor_cells]
     
