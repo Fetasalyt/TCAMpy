@@ -1,11 +1,12 @@
 Installation
 ============
-To get started with this project, follow the instructions below.
+You can install TCAMpy from PyPI using:
 
-1. Install the necessary dependencies using `conda install` or `pip`.
-2. Clone the repository and set up your environment.
+.. code-block:: console
 
-The dependencies for TCAMpy are shown below:
+  pip install TCAMpy
+
+The dependencies for TCAMpy are shown below (and are automatically installed with TCAMpy):
 
 .. include:: ../requirements.txt
    :literal:
