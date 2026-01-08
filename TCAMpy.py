@@ -61,7 +61,7 @@ class TModel:
         self.runs  = []
         
         # Chances
-        self.PP = CCT*Dt/24*100
+        self.PP = 24*Dt/CCT*100
         self.PM = 100*mu/24
         self.PA = PA
         self.PS = PS
