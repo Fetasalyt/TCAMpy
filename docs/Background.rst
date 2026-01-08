@@ -25,7 +25,8 @@ Tumor cell behaviour
 --------------------
 
 At every cycle each cell chooses from four different options. First, they can die by apoptosis (low chance for RTCs only). If they survive, they can proliferate with the probability
-of CCT*dt/24 (where CCT is the cell cycle time, dt is the time step in the model). In case of no proliferation, they can migrate to one of the eight neighbouring cells. The probability
+of 24*dt/CCT (where CCT is the cell cycle time, dt is the time step in the model. There is a typo in the original paper, saying p = CCT · dt/24, which cannot be the case, as higher CCT should
+lead to decreased proliferation). In case of no proliferation, they can migrate to one of the eight neighbouring cells. The probability
 of this action is mu*dt (mu is the migration capacity of the cell). If none of these actions happen, the cell stays quiescent. Quiescence is forced if there is no free space around the
 a surviving cell.
 
