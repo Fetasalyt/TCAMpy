@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "TCAMpy"
-version = "0.1.1"
+version = "0.2.0"
 authors = [
   { name="Richárd Bence Rózsa"}
 ]
@@ -26,10 +26,10 @@ dynamic = ["dependencies"]
 dependencies = {file = ["requirements.txt"]}
 
 [project.urls]
-Homepage = "https://github.com/FetasaLYt/TCAMpy"
+Homepage = "https://github.com/RRichardB/TCAMpy"
 Documentation = "https://tcampy.readthedocs.io/en/latest/"
-Repository = "https://github.com/FetasaLYt/TCAMpy"
-Issues = "https://github.com/FetasaLYt/TCAMpy/issues"
+Repository = "https://github.com/RRichardB/TCAMpy"
+Issues = "https://github.com/RRichardB/TCAMpy/issues"
 Dashboard = "https://tcampy.streamlit.app/"
 
 [tool.setuptools]

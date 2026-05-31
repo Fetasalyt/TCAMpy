@@ -11,7 +11,8 @@ Comput Biol Med. 2023 Feb;153:106481. doi: 10.1016/j.compbiomed.2022.106481. Epu
 This is a 2D cellular automata model; the area is a square grid, with each cell being able to have discrate values ranging from 0 to a 'pmax'+1 (see below). If a square
 is 0, it is empty, if not 0, a tumor cell exists there with a proliferation potential of the square's value. All probabilites mentioned below, the maximum proliferation potential value,
 model duration and area size is a parameter of the model, which can be set by the user. Here is a quick explanation of how the model works. Please note that the exact parameter values, equations, ranges and methods are
-described in the paper: [to be uploaded] (and can also be seen in the source code).
+described in the papers uploaded to the docs folder: https://github.com/RRichardB/TCAMpy/tree/main/docs (and can also be seen in the source code). Here you can also find a pdf about the validation of the model, comparing
+simulations to experimental data.
 
 Tumor cell types
 ----------------
@@ -19,21 +20,24 @@ Tumor cell types
 In the model, we have two types of tumor cells. RTCs (regular tumor cells) can only divide a limited amount of times. This amount is their proliferation potential,
 which gets smaller with every division. These cells can only proliferate into other RTCs, and the daughter cell will have the same proliferation potential value as the
 mother cell after the division (So an RTC with pp = 5 will create two cells, whose pp = 4). STCs (stem tumor cells) have infinite divisions. Their daughter cell is either
-an RTC with the highest proliferation potential value (pmax) or (by a small chance) another STC. The value which we represent these cells with in the model is pmax+1.
+an RTC with the highest proliferation potential value (pmax) or another STC. The value which we represent these cells with in the model is pmax + 1.
 
 Tumor cell behaviour
 --------------------
 
 At every cycle each cell chooses from four different options. First, they can die by apoptosis (low chance for RTCs only). If they survive, they can proliferate with the probability
 of 24*dt/CCT (where CCT is the cell cycle time, dt is the time step in the model. There is a typo in the original paper, saying p = CCT · dt/24, which cannot be the case, as higher CCT should
-lead to decreased proliferation). In case of no proliferation, they can migrate to one of the eight neighbouring cells. The probability
-of this action is mu*dt (mu is the migration capacity of the cell). If none of these actions happen, the cell stays quiescent. Quiescence is forced if there is no free space around the
-a surviving cell.
+lead to decreased proliferation). In case of no proliferation, they can migrate to one of the eight neighbouring cells. The probability of this action is mu*dt*(1-ad) (mu is the migration capacity
+of the cell, ad is the adhesion parameter). If none of these actions happen, the cell stays quiescent. Quiescence is forced if there is no free space around the a surviving cell due to contact inhibition.
 
 Immune response
 ---------------
 
-In each cycle, after the tumor growth, immune cells may also appear and act. They spawn from a certain distance away from the tumor on the field (on a "frame" around the tumor) and every time step they move to a free neighbouring spot towards tumor density. If they get in contact with a cancer cell (they move next to one), they might kill it with a probability based on an immune strength (I) parameter, mutation state of the target and immune exhaustion (IE), which is a time-dependent decline of the immune population. The spawn rate is influenced by I, IE and tumor size as well. The movement of the immune cells is faster then the movement of the tumor cells, so they can migrate multiple time in each cycle (increasing based on their distance from the tumor). Immune cells are shown on the same heatmap as the tumor cells. After a certain amount of life, the immune cells die. The immune response can be disabled by setting the 'I' parameter to 0.
+In each cycle, after the tumor growth, immune cells may also appear and act. They spawn from a certain distance away from the tumor on the field (on a "frame" around the tumor) and every time step they move
+to a free neighbouring spot towards tumor density. If they get in contact with a cancer cell (they move next to one), they might kill it with a probability based on an immune strength (I) parameter, mutation state
+of the target, and immune exhaustion (IE), which is a time-dependent decline of the immune population. The spawn rate is influenced by I, IE and tumor size as well. The movement of the immune cells is faster then
+the movement of the tumor cells, so they can migrate multiple time in each cycle (increasing based on their distance from the tumor). Immune cells are shown on the same heatmap as the tumor cells. After a certain
+amount of life, the immune cells die. The immune response can be disabled by setting the 'I' parameter to 0.
 
 Mutations
 ---------

@@ -12,5 +12,6 @@ scipy==1.15.1
 streamlit==1.43.2
 streamlit_javascript==0.1.5
 scikit_learn==1.7.0
-openpyxl
-tqdm
+scikit_image==0.26.0
+openpyxl==3.1.5
+tqdm==4.67.3

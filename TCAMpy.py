@@ -13,8 +13,10 @@ from sklearn.metrics import r2_score, mean_absolute_error
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
 from streamlit_javascript import st_javascript
+from scipy.ndimage import binary_fill_holes
 from scipy.ndimage import gaussian_filter
 from scipy.stats import skew, kurtosis
+from skimage import measure
 from functools import wraps
 from tqdm import tqdm
 
@@ -29,46 +31,37 @@ class TModel:
         PA (int): chance for apoptosis of RTC (in percent)
         CCT (int): cell cycle time of cells given in hours
         Dt (float): time step of the model given in days
-        PS (int): STC-STC division chance (in percent)
-        mu (int): migration capacity of cancer cells
+        PS (int): STC - STC division chance (in percent)
+        mu (int): the migration capacity of cancer cells
+        ad (float): cell-cell adhesion strength (0-1)
         I (int): strength of the immune cells (1-5)
         M (int): tumor mutation chance (in percent)
     """
     
-    def __init__(self, cycles, side, pmax, PA, CCT, Dt, PS, mu, I, M):
-        # Parameters     
+    def __init__(self, cycles, side, pmax, PA, CCT, Dt, PS, mu, ad, I, M):
+        # Simulation parameters
         self.cycles = cycles
         self.side   = side
         self.pmax   = pmax
         self.CCT    = CCT
         self.Dt     = Dt
         self.mu     = mu
+        self.ad     = ad
         self.I      = I
         self.M      = M
         
-        # Single model data
-        self.stc_number = []
-        self.rtc_number = []
-        self.wbc_number = []
-        self.cancer = []
-        self.immune = []
-        self.mutate = []
-        self.mutmap = []
-        self.images = []
+        self.init_state()
+        self.init_array()
         
         # Multiple models data
         self.stats = []
         self.runs  = []
         
         # Chances
+        self.PM = 100 * mu/24 * (1-ad/10)
         self.PP = 24 * Dt/CCT * 100
-        self.PM = 100 * mu/24
         self.PA = PA
         self.PS = PS
-        
-        # Immune Data
-        self.it_ratio = []
-        self.kill_day = []
     
     # ---------------------------------------------------------------------
     def init_state(self):
@@ -85,15 +78,40 @@ class TModel:
         self.mod_cell(self.side//2, self.side//2, self.pmax+1)
         
     # ---------------------------------------------------------------------
-    def find_tumor_cells(self):
+    def init_array(self):
+        """
+        Initializes/resets the arrays of statistical information.
+        """
+
+        # Tumor data
+        self.stc_number, self.rtc_number, self.t_boundary = [], [], []
+        # Immune Data
+        self.wbc_number, self.it_ratio, self.kill_day = [], [], []
+        # Contour data
+        self.fill, self.cont, self.circ = [], [], []
+        # Radius/area/frames
+        self.arad, self.area, self.images = [], [], []
+        
+    # ---------------------------------------------------------------------
+    def find_tumor_cells(self, get_border: bool = True):
         """
         Saves the coordinates of tumor cells to self.tumor_cells.
+        
+        Parameters:
+            get_border (bool): enables saving the tumor border separately.
         """
      
         # Tumor cell coords randomized
         coords = np.argwhere(self.cancer > 0)
         np.random.shuffle(coords)
         self.tumor_cells = coords
+
+        # Find the tumor boundary
+        if get_border and len(coords) > 0:
+            filled = binary_fill_holes(self.cancer > 0)
+            binary = filled.astype(float)
+            contours = measure.find_contours(binary, level=0.5)
+            self.cont.append(max(contours, key=len))
 
     # ---------------------------------------------------------------------
     def count_tumor_cells(self):
@@ -108,6 +126,15 @@ class TModel:
         # Save the current number
         self.stc_number.append(stc_count)
         self.rtc_number.append(rtc_count)
+        
+        # Save area and radius data
+        tumor_area = (stc_count + rtc_count) * 100
+        self.area.append(tumor_area)
+        self.arad.append(np.sqrt(tumor_area/np.pi)*1000)
+        
+        # Save area with holes filled
+        filled = binary_fill_holes(self.cancer > 0)
+        self.fill.append(np.count_nonzero(filled) * 100)
 
     # ---------------------------------------------------------------------
     def get_neighbours(self, x, y, neighbour_type):
@@ -128,18 +155,18 @@ class TModel:
         c_end   = min(self.side - 1, y + 2)
     
         # Extract views of the field and immune grids
-        f_view = self.cancer[r_start:r_end, c_start:c_end]
+        t_view = self.cancer[r_start:r_end, c_start:c_end]
         i_view = self.immune[r_start:r_end, c_start:c_end]
     
         match neighbour_type:
             case 1:  # Empty
-                mask = (f_view == 0) & (i_view == 0)
+                mask = (t_view == 0) & (i_view == 0)
             case 2:  # Tumor
-                mask = f_view > 0
+                mask = t_view > 0
             case 3:  # Immune
                 mask = i_view > 0
             case 4:  # Any Cell
-                mask = (f_view > 0) | (i_view > 0)
+                mask = (t_view > 0) | (i_view > 0)
             case 5:  # Not Immune
                 mask = i_view == 0
     
@@ -281,7 +308,7 @@ class TModel:
         """
 
         # Current tumor cell locations
-        self.find_tumor_cells()
+        self.find_tumor_cells(get_border = False)
         tumor_size = len(self.tumor_cells)
         
         if tumor_size == 0:
@@ -305,6 +332,7 @@ class TModel:
         
         # Immune exhaustion = time-dependent decline
         IE = max(1.0 / (1.0 + alpha * self.cycles), 0.2)
+        # IE Gets lower with time: 1 -> 0.2 (minimum)
 
         # Saturating spawn (sigmoid-like), delayed onset
         spawn = self.I * (tumor_size / (tumor_size + self.I * 100)) * IE
@@ -346,12 +374,13 @@ class TModel:
             if strength <= 0:
                 continue
         
-            # Kill prob on contact: (0.15 - 0.3, if I=5, IE = 0)
+            # Kill prob on contact: (0.15 - 0.4, if I=3, IE = 1)
             tumor_nb = self.get_neighbours(x, y, 2)
             if tumor_nb:
                 tx, ty = random.choice(tumor_nb)
-                kill = (0.05*self.I) * np.exp(-0.25*self.mutate[tx,ty]) * IE
-                kill = min(kill, 0.3)
+                # More + mutation means lower kill prob.
+                kill = (0.105*self.I) * np.exp(-0.25*self.mutate[tx,ty]) * IE
+                kill = min(kill, 0.4)
                 if np.random.rand() < kill:
                     self.cancer[tx, ty] = 0
                     self.mutate[tx, ty] = 0
@@ -491,20 +520,57 @@ class TModel:
             
             if self.I > 0:
                 stats.update({
-                    "Mean I/T"  : sum(self.it_ratio)/len(self.it_ratio),
-                    "Mean k/d"  : sum(self.kill_day)/len(self.kill_day)
+                    "Mean I/T": sum(self.it_ratio)/len(self.it_ratio),
+                    "Mean k/d": sum(self.kill_day)/len(self.kill_day)
+                })
+                
+            # Calculate growth slope (um2/hour growth)
+            t = np.arange(self.cycles)
+            aslope, b = np.polyfit(t, self.area, 1)
+            rslope, b = np.polyfit(t, self.arad, 1)
+            stats.update({
+                "Area slope (um2/h)": aslope,
+                "Radius slope (nm/h)": rslope,
                 })
         
             # Proliferation potentials
             stats.update(self.get_prolif_potentials())
                 
-            # Cell Numbers
+            # Cell Numbers, area, radius
             checkpoints = np.linspace(0, self.cycles - 1, int(self.cycles/10) + 1, dtype=int)
             for idx in checkpoints:
                 hour = (idx + 1)
                 stats[f"{hour}h_STC"] = self.stc_number[idx]
                 stats[f"{hour}h_RTC"] = self.rtc_number[idx]
                 stats[f"{hour}h_WBC"] = self.wbc_number[idx]
+                stats[f"{hour}h_area"] = self.area[idx]
+                stats[f"{hour}h_arad"] = self.arad[idx]
+                
+            # Circularity
+            self.circularities = []
+            indices = np.linspace(len(self.cont)/3, len(self.cont) - 1, 6, dtype=int)
+            indices = indices[2:]
+
+            for i in indices:
+                
+                contour = self.cont[i]
+                closed = np.vstack([contour, contour[0]])
+                diffs = np.diff(closed, axis=0)
+                seg_lengths = np.sqrt((diffs**2).sum(axis=1))
+                P = seg_lengths.sum() * 10
+                
+                A = self.fill[i]
+                if P > 0:
+                    C = 4 * np.pi * A / (P ** 2)
+                else:
+                    C = np.nan
+                # Remove false values
+                if C > 1: C = np.nan
+                self.circularities.append(C)
+                
+            stats.update({
+                "Circularity": sum(self.circularities)/len(self.circularities),
+            })
             
         else: stats = {
             "Tumor Size": 0,
@@ -553,17 +619,13 @@ class TModel:
         """
 
         # Create initial state
-        if len(self.cancer) == 0: self.init_state()
-        self.find_tumor_cells()
+        self.find_tumor_cells(get_border = False)
         if len(self.immune) == 0:
             self.immune = np.zeros((self.side, self.side))
         if len(self.mutate) == 0:
             self.mutate = np.zeros((self.side, self.side))
             self.mutmap = np.zeros((self.side, self.side))
-        
-        self.stc_number = []
-        self.rtc_number = []
-        self.wbc_number = []
+        self.init_array()
         
         if animate: self.animate(1)
 
@@ -580,7 +642,9 @@ class TModel:
         
         # Output settings
         if plot: self.plot_run(len(self.runs))
-        if animate: self.ani = self.animate(3)
+        if animate:
+            self.ani = self.animate(3)
+            # self.ani.save("with_immune.gif", writer="pillow")
         if stats:
             df = pd.DataFrame(self.stats)
             base_cols = self.separate_columns(df)[0]
@@ -634,9 +698,12 @@ class TModel:
         result["mutate"] = self.mutate
         result["mutmap"] = self.mutmap
         result["cancer"] = self.cancer
+        result["area"]   = self.area
+        result["arad"]   = self.arad
         result["stc"]    = self.stc_number
         result["rtc"]    = self.rtc_number
         result["wbc"]    = self.wbc_number
+        result["con"]    = self.cont
         result["pp"]     = self.get_prolif_potentials().values()
         
         # Stores data for plotting
@@ -649,74 +716,104 @@ class TModel:
     def separate_columns(self, data):
         """
         Separates the statistics DataFrame columns into logical groups:
-        base stats, STC, RTC, WBC counts, and proliferation potentials.
+        base stats, STC, RTC, WBC counts, area/radius data and pp values.
 
         Parameters:
             data (pd.DataFrame): Your data in a pandas dataframe format
 
         Returns:
-            tuple of list[str]: A tuple containing 5 lists of column names:
+            tuple of list[str]: A tuple containing 7 lists of column names:
                 - base: Columns with general statistical properties
                 - stc:  Columns with STC counts at each time point
                 - rtc:  Columns with RTC counts at each time point
                 - wbc:  Columns with WBC counts at each time point
+                - area: Columns with area data at each time point
+                - arad: Columns with radius data at each time point
                 - pp:   Columns for proliferation potential values
         """
         
         base = [col for col in data.columns if not str(col).isdigit()
-                and "_STC" not in str(col)
-                and "_RTC" not in str(col)
-                and "_WBC" not in str(col)]
+                and "_STC" not in str(col) and "_RTC" not in str(col)
+                and "_WBC" not in str(col) and "_area" not in str(col)
+                and "_arad" not in str(col)]
         stc  = sorted([col for col in data.columns if "_STC" in str(col)],
                       key=lambda x: int(str(x).split("h")[0]))
         rtc  = sorted([col for col in data.columns if "_RTC" in str(col)],
                       key=lambda x: int(str(x).split("h")[0]))
         wbc  = sorted([col for col in data.columns if "_WBC" in str(col)],
                       key=lambda x: int(str(x).split("h")[0]))
+        area = sorted([col for col in data.columns if "_area" in str(col)],
+                      key=lambda x: int(str(x).split("h")[0]))
+        arad = sorted([col for col in data.columns if "_arad" in str(col)],
+                      key=lambda x: int(str(x).split("h")[0]))
         pp   = sorted([col for col in data.columns if isinstance(col, int)])
         
-        return base, stc, rtc, wbc, pp
+        return base, stc, rtc, wbc, pp, area, arad
 
     # ---------------------------------------------------------------------
-    def plot_run(self, run):
+    def plot_run(self, run: int, boundaries: int = 5):
         """
         Creates growth and cell number plots, proliferation potential histograms.
         
         Paramteres:
             run (int): which model execution to plot
+            boundaries (int): number of boundaries to plot
             
         Returns:
             matplotlib.figure.Figure: the generated plots of the specific run
         """
         
         # Create the figue and axis
-        fig, axs = plt.subplots(2, 2, figsize=(14,14))
+        fig, axs = plt.subplots(2, 3, figsize=(20,16))
 
+        # Plot the tumor heatmap
         tumor = axs[0, 0].imshow(self.runs[run-1]["cancer"], vmin=0, vmax=self.pmax+1)
         fig.colorbar(tumor, ax=axs[0, 0])
         
+        # Plot the immune cells
         immune_coords = np.argwhere(self.runs[run-1]["immune"] > 0)
         axs[0, 0].scatter(immune_coords[:,1], immune_coords[:,0],
                           c='blue', marker='v', s=10)
         
+        # Plot cell numbers
         axs[0, 1].plot(self.runs[run-1]["stc"], 'C1', label='STC')
         axs[0, 1].plot(self.runs[run-1]["rtc"], 'C2', label='RTC')
         axs[0, 1].plot(self.runs[run-1]["wbc"], 'C3', label='WBC')
         axs[0, 1].legend()
         
+        # Plot area and radius
+        axs[0, 2].plot(self.runs[run-1]["area"], 'C4', label='area (um2)')
+        axs[0, 2].plot(self.runs[run-1]["arad"], 'C6', label='radius (nm)')
+        axs[0, 2].legend()
+        
+        # Plot mutation map
         mutmap = axs[1, 0].imshow(self.runs[run-1]["mutmap"],
                  cmap="RdBu_r", vmin=-3, vmax=3, interpolation="bicubic")
         fig.colorbar(mutmap, ax=axs[1, 0])
         
+        # Plot ploriferation potentials
         axs[1, 1].bar(range(1, self.pmax + 2), self.runs[run-1]["pp"], edgecolor='black')
+        
+        # Plot tumor boundaries
+        indices = np.linspace(len(self.runs[run-1]["con"])/3, len(self.runs[run-1]["con"]) - 1, boundaries + 1, dtype=int)
+        indices = indices[2:]
+        
+        axs[1, 2].imshow(np.zeros((self.side, self.side)))
+        colors = ['g-', 'b-', 'y-', 'r-']
+        for i, k in zip(indices, colors):
+            axs[1, 2].plot(self.runs[run-1]["con"][i][:, 1],
+                           self.runs[run-1]["con"][i][:, 0],
+                           k, linewidth=1)
 
         # Titles/labels of the plots
-        titles = [str(self.cycles)+ "h cell growth", "Cell count",
-                  "Mutation history", "Final PP values"]
-        labs_x = [str(self.side*10) + " um", "Time (h)",
-                  str(self.side*10) + " um", "Proliferation potentials"]
-        labs_y = [str(self.side*10) + " um", "Cell numbers",
-                  str(self.side*10) + " um", "Number of appearance"]
+        titles = [str(self.cycles)+ "h cell growth", "Cell count", "Growth stats", 
+                  "Mutation history", "Final PP values", "Tumor Contour Map"]
+        labs_x = [str(self.side*10) + " um", "Time (h)", "Time (h)",
+                  str(self.side*10) + " um", "Proliferation potentials",
+                  str(self.side*10) + " um"]
+        labs_y = [str(self.side*10) + " um", "Cell numbers", "Values",
+                  str(self.side*10) + " um", "Number of appearance",
+                  str(self.side*10) + " um"]
 
         fig.suptitle("Simulation " + str(run) + " Results", fontsize = 16)
         for i, ax in enumerate(axs.flat):
@@ -737,8 +834,9 @@ class TModel:
             matplotlib.figure.Figure: The plots of the averages with SD values
         """
         
-        base_cols, stc_cols, rtc_cols, wbc_cols, pp_cols = self.separate_columns(data)
+        base_cols, stc_cols, rtc_cols, wbc_cols, pp_cols, area_cols, arad_cols = self.separate_columns(data)
         
+        # Cell and PP data
         avg_stc = data[stc_cols].mean()
         std_stc = data[stc_cols].std()
         avg_rtc = data[rtc_cols].mean()
@@ -748,9 +846,16 @@ class TModel:
         avg_pp  = data[pp_cols].mean()
         std_pp  = data[pp_cols].std()
         
-        fig, [ax1, ax2] = plt.subplots(1, 2, figsize=(14, 5))
-        timepoints      = np.linspace(0, self.cycles - 1, int(self.cycles/10) + 1)
+        # Area and radius data
+        avg_area = data[area_cols].mean()
+        std_area = data[area_cols].std()
+        avg_arad = data[arad_cols].mean()
+        std_arad = data[arad_cols].std()
         
+        fig, [ax1, ax2, ax3] = plt.subplots(1, 3, figsize=(18, 5))
+        timepoints = np.linspace(0, self.cycles - 1, int(self.cycles/10) + 1)
+        
+        # Plot cell numbers
         ax1.plot(timepoints, avg_stc, label='STC', color='C1')
         ax1.fill_between(timepoints, avg_stc - std_stc, avg_stc + std_stc,
                          color='C1', alpha=0.3)
@@ -765,11 +870,25 @@ class TModel:
         ax1.set_xlabel("Model Time (hours)")
         ax1.set_ylabel("Number of Cells")
         ax1.legend()
+        
+        # Plot area and radius
+        ax2.plot(timepoints, avg_area, label='area (um2)', color='C4')
+        ax2.fill_between(timepoints, avg_area - std_area, avg_area + std_area,
+                         color='C4', alpha=0.3)
+        ax2.plot(timepoints, avg_arad, label='radius (nm)', color='C6')
+        ax2.fill_between(timepoints, avg_arad - std_arad, avg_arad + std_arad,
+                         color='C6', alpha=0.3)
+        
+        ax2.set_title("Average Area and Radius")
+        ax2.set_xlabel("Model Time (hours)")
+        ax2.set_ylabel("Values")
+        ax2.legend()
 
-        ax2.bar(pp_cols, avg_pp, yerr=std_pp, capsize=5, edgecolor='black')
-        ax2.set_title("Average Proliferation Potential Distribution")
-        ax2.set_xlabel("Proliferation Potential")
-        ax2.set_ylabel("Average Count")
+        # Plot PP values
+        ax3.bar(pp_cols, avg_pp, yerr=std_pp, capsize=5, edgecolor='black')
+        ax3.set_title("Average Proliferation Potential Distribution")
+        ax3.set_xlabel("Proliferation Potential")
+        ax3.set_ylabel("Average Count")
         
         fig.suptitle("Averages of " + str(len(self.stats)) + " Models", fontsize = 16)
         plt.tight_layout()
@@ -863,16 +982,17 @@ class TDashboard:
         self.model.Dt     = st.slider("Time Step (days)", 0.01, 1.0, value=self.model.Dt, step=0.01)
         self.model.PS     = st.slider("STC-STC Division Chance (%)", 0, 100, value=self.model.PS)
         self.model.mu     = st.slider("Migration Capacity", 0, 10, value=self.model.mu)
-        self.model.I      = st.slider("Immune Strength", 0, 10, value=self.model.I)
+        self.model.ad     = st.slider("Adhesion Strength", 0, 10, value=self.model.ad)
+        self.model.I      = st.slider("Immune Strength", 0, 5, value=self.model.I)
         self.model.M      = st.slider("Mutation Chance", 0, 50, value=self.model.M)
 
-        self.model.PP = int(self.model.CCT * self.model.Dt / 24 * 100)
-        self.model.PM = 100 * self.model.mu / 24
+        self.model.PP = 24 * self.model.Dt / self.model.CCT * 100
+        self.model.PM = self.model.mu / 24 * (1 - self.model.ad/10) * 100
 
         init_config = (
             self.model.side, self.model.cycles, self.model.pmax,
             self.model.PA, self.model.CCT, self.model.Dt, self.model.PS,
-            self.model.mu, self.model.I, self.model.M
+            self.model.mu, self.model.ad, self.model.I, self.model.M
         )
         config_hash = hashlib.md5(str(init_config).encode()).hexdigest()
 
@@ -890,7 +1010,7 @@ class TDashboard:
             or st.session_state.init_config_hash != config_hash
         ):
             self.model.init_state()
-            st.session_state.cancer  = self.model.cancer.copy()
+            st.session_state.cancer = self.model.cancer.copy()
             st.session_state.immune = self.model.immune.copy()
             st.session_state.mutate = self.model.mutate.copy()
             st.session_state.mutmap = self.model.mutmap.copy()
@@ -1147,7 +1267,7 @@ class TDashboard:
         self.print_title("All Simulations")
         plots_height = self.get_plot_height(3, 0.4)
         df = pd.DataFrame(self.model.stats)
-        base_cols, stc_cols, rtc_cols, wbc_cols, pp_cols = self.model.separate_columns(df)
+        base_cols, stc_cols, rtc_cols, wbc_cols, pp_cols, _, _ = self.model.separate_columns(df)
         df.index = df.index + 1
 
         # Display Statistics
@@ -1372,6 +1492,7 @@ class TML:
             "Dt":     self.model.Dt,
             "PS":     self.model.PS,
             "mu":     self.model.mu,
+            "ad":     self.model.ad,
             "I":      self.model.I,
             "M":      self.model.M,
         }
@@ -1448,7 +1569,7 @@ class TML:
             df = file
         else:
             df = pd.read_csv(file)
-        x  = df[df.columns[0:10]]
+        x  = df[df.columns[0:11]]
         y  = df[target]
     
         self.feature_columns = x.columns.tolist()

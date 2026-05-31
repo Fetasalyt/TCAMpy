@@ -1,6 +1,6 @@
 Installation
 ============
-You can install TCAMpy from PyPI using:
+You can install TCAMpy from PyPI (but it is recommended to use a virtual environment to avoid conflicts with other packages):
 
 .. code-block:: console
 
